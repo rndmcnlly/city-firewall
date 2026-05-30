@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Shatter Reveal — Grid Collapse</title>
+<style>
+  /* =========================================================================
+     Classic Heist visual style guide (shared across all three flavors).
+     Near-black bg, dark panels, red accent. Monospace = terminal/code.
+     ========================================================================= */
+  :root {
+    --bg:      #0a0e14;
+    --panel:   #121822;
+    --border:  #1d2735;
+    --ink:     #e6edf3;
+    --dim:     #8b98a5;
+    --accent:  #ff4d4d;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: var(--bg); color: var(--ink);
+    font-family: ui-sans-serif, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+    overflow: hidden;
+  }
+  /* The WebGL canvas fills the viewport and sits on TOP of the DOM desktop. */
+  #gl {
+    position: fixed; inset: 0; z-index: 10;
+    display: block; width: 100%; height: 100%;
+  }
+
+  /* -------------------------------------------------------------------------
+     The "secure desktop" behind the glass. This is plain DOM, sitting BEHIND
+     the WebGL canvas. As the grid collapses we let the 3D scene's clear color
+     go transparent so this shows through. Placeholder per spec.
+     ------------------------------------------------------------------------- */
+  #desktop {
+    position: fixed; inset: 0; z-index: 1;
+    background:
+      radial-gradient(1200px 800px at 70% 20%, #14202c 0%, #0b1117 60%, #070a0f 100%);
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  /* faint grid wallpaper to read as a "secure" workstation */
+  #desktop::before {
+    content: ""; position: absolute; inset: 0; opacity: 0.12;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  .topbar {
+    position: absolute; top: 0; left: 0; right: 0; height: 34px;
+    background: rgba(18,24,34,0.9); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 14px;
+    font-size: 13px; color: var(--dim); letter-spacing: 0.5px;
+  }
+  .topbar .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent);
+    margin-right: 8px; box-shadow: 0 0 8px var(--accent); }
+  .desktop-icon {
+    position: absolute; top: 90px; left: 60px; width: 96px;
+    text-align: center; cursor: pointer; user-select: none;
+    color: var(--ink); font-size: 13px;
+  }
+  .desktop-icon .glyph {
+    width: 64px; height: 64px; margin: 0 auto 8px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: linear-gradient(160deg, #18222e, #0f1620);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 30px; color: var(--accent);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,77,77,0.08);
+  }
+  .desktop-icon:hover .glyph { box-shadow: 0 0 16px rgba(255,77,77,0.4); }
+
+  /* The clue.txt window */
+  #clueWindow {
+    position: absolute; top: 140px; left: 220px; width: 320px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 18px 50px rgba(0,0,0,0.6); display: none; z-index: 5;
+  }
+  #clueWindow .title {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 10px; border-bottom: 1px solid var(--border);
+    font-size: 12px; color: var(--dim);
+  }
+  #clueWindow .title .close {
+    cursor: pointer; color: var(--dim); padding: 0 4px;
+  }
+  #clueWindow .title .close:hover { color: var(--accent); }
+  #clueWindow .body {
+    padding: 22px 18px; font-family: ui-monospace, Menlo, monospace;
+  }
+  #clueWindow .code {
+    font-size: 40px; letter-spacing: 10px; color: var(--accent);
+    text-shadow: 0 0 12px rgba(255,77,77,0.5); text-align: center;
+  }
+  #clueWindow .caption { color: var(--dim); font-size: 11px; text-align: center; margin-top: 10px; }
+
+  /* Replay button overlay, always clickable, above everything. */
+  #replay {
+    position: fixed; z-index: 20; right: 16px; bottom: 16px;
+    background: var(--panel); color: var(--ink);
+    border: 1px solid var(--accent); border-radius: 6px;
+    padding: 9px 16px; font-size: 13px; cursor: pointer;
+    font-family: ui-monospace, Menlo, monospace; letter-spacing: 1px;
+    box-shadow: 0 0 14px rgba(255,77,77,0.25);
+  }
+  #replay:hover { background: #1a222e; box-shadow: 0 0 20px rgba(255,77,77,0.5); }
+</style>
+</head>
+<body>
+
+  <!-- =======================================================================
+       SECURE DESKTOP (DOM, behind WebGL). Revealed once the grid collapses.
+       ======================================================================= -->
+  <div id="desktop">
+    <div class="topbar"><span class="dot"></span> SECURE WORKSTATION // node-07 :: access granted</div>
+
+    <div class="desktop-icon" id="clueIcon">
+      <div class="glyph">&#128196;</div>
+      <div>clue.txt</div>
+    </div>
+
+    <div id="clueWindow">
+      <div class="title">
+        <span>clue.txt — /home/agent</span>
+        <span class="close" id="clueClose">&#10005;</span>
+      </div>
+      <div class="body">
+        <div class="code">WXYZ</div>
+        <div class="caption">// placeholder clue — real code injected later</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WebGL canvas: the "glass" (login screen) that shatters as a tile grid. -->
+  <canvas id="gl"></canvas>
+
+  <button id="replay">&#9654; REPLAY</button>
+
+  <!-- =======================================================================
+       Import map: pin a specific Three.js version from jsDelivr.
+       Only the core module is actually imported; the addons path is mapped
+       defensively in case the synthesis step wants jsm helpers later.
+       ======================================================================= -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <script type="module">
+  import * as THREE from 'three';
+
+  /* =========================================================================
+     GRID COLLAPSE flavor
+     -------------------------------------------------------------------------
+     The login screen is drawn onto a 2D <canvas> and used as a CanvasTexture.
+     We slice the textured plane into a clean rectangular grid of tiles. Each
+     tile gets procedurally-computed UVs so, at rest, the tiles reconstruct the
+     login image seamlessly. On trigger, tiles fall away in a diagonal domino
+     cascade: a wave sweeping from the top-left corner to the bottom-right,
+     each tile flipping backward about its bottom edge while gravity pulls it
+     down and it recedes in z. Thin glowing red edges fade in as each tile
+     breaks free, for a Tron / circuit-board feel.
+     ========================================================================= */
+
+  // ---- Grid resolution. 10 columns x 7 rows = 70 tiles (crisp, rhythmic). ----
+  const COLS = 10;
+  const ROWS = 7;
+
+  // ---- Login texture authoring resolution (the canvas we draw the UI on). ----
+  const TEX_W = 1024;
+  const TEX_H = 720;     // ~ matches a landscape login viewport
+
+  // =========================================================================
+  // 1) DRAW THE LOGIN SCREEN ONTO A 2D CANVAS  -> CanvasTexture
+  //    `withFlash` lets us redraw with a bright red grid-line flash overlaid,
+  //    used in the instant before the collapse begins.
+  // =========================================================================
+  const loginCanvas = document.createElement('canvas');
+  loginCanvas.width = TEX_W;
+  loginCanvas.height = TEX_H;
+  const lctx = loginCanvas.getContext('2d');
+
+  function drawLogin(withFlash = false) {
+    const ctx = lctx;
+    const W = TEX_W, H = TEX_H;
+
+    // Background
+    ctx.fillStyle = '#0a0e14';
+    ctx.fillRect(0, 0, W, H);
+
+    // Subtle ambient vignette
+    const vg = ctx.createRadialGradient(W/2, H*0.35, 80, W/2, H/2, W*0.7);
+    vg.addColorStop(0, 'rgba(20,32,44,0.55)');
+    vg.addColorStop(1, 'rgba(7,10,15,0)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+
+    // ---- Login card ----
+    const cardW = 520, cardH = 380;
+    const cx = (W - cardW) / 2, cy = (H - cardH) / 2;
+
+    // card shadow
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = 40; ctx.shadowOffsetY = 18;
+    roundRect(ctx, cx, cy, cardW, cardH, 14);
+    ctx.fillStyle = '#121822';
+    ctx.fill();
+    ctx.restore();
+
+    // card border
+    roundRect(ctx, cx, cy, cardW, cardH, 14);
+    ctx.lineWidth = 2; ctx.strokeStyle = '#1d2735'; ctx.stroke();
+
+    // Title
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '600 30px ui-sans-serif, system-ui, Helvetica, Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('SECURE ACCESS', W/2, cy + 60);
+
+    // accent underline
+    ctx.fillStyle = '#ff4d4d';
+    ctx.fillRect(W/2 - 70, cy + 76, 140, 3);
+
+    // Sub label
+    ctx.fillStyle = '#8b98a5';
+    ctx.font = '14px ui-monospace, Menlo, Consolas, monospace';
+    ctx.fillText('// authorized personnel only', W/2, cy + 102);
+
+    // ---- Fields (fake/static) ----
+    const fieldX = cx + 50, fieldW = cardW - 100, fieldH = 46;
+    drawField(ctx, fieldX, cy + 132, fieldW, fieldH, 'USERNAME', 'agent_07');
+    drawField(ctx, fieldX, cy + 200, fieldW, fieldH, 'PASSWORD', '••••••••••••');
+
+    // ---- "ACCESS DENIED" stamp (rotated, red, distressed feel) ----
+    ctx.save();
+    ctx.translate(W/2, cy + 300);
+    ctx.rotate(-0.18);
+    ctx.strokeStyle = '#ff4d4d';
+    ctx.lineWidth = 4;
+    ctx.globalAlpha = 0.92;
+    roundRect(ctx, -150, -34, 300, 68, 8);
+    ctx.stroke();
+    ctx.fillStyle = '#ff4d4d';
+    ctx.font = '700 34px ui-monospace, Menlo, Consolas, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('ACCESS DENIED', 0, 2);
+    ctx.restore();
+    ctx.textBaseline = 'alphabetic';
+
+    // ---- Optional pre-collapse grid flash: bright red grid lines tracing the
+    //      tile boundaries, so the "fracture lines" appear an instant before
+    //      the tiles actually let go. Pure Tron telegraphing.
+    if (withFlash) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,77,77,0.85)';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#ff4d4d';
+      ctx.shadowBlur = 12;
+      for (let c = 1; c < COLS; c++) {
+        const x = (c / COLS) * W;
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+      }
+      for (let r = 1; r < ROWS; r++) {
+        const y = (r / ROWS) * H;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  // Helper: rounded rectangle path
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y,     x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x,     y + h, r);
+    ctx.arcTo(x,     y + h, x,     y,     r);
+    ctx.arcTo(x,     y,     x + w, y,     r);
+    ctx.closePath();
+  }
+
+  // Helper: a labeled input field
+  function drawField(ctx, x, y, w, h, label, value) {
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#8b98a5';
+    ctx.font = '11px ui-monospace, Menlo, monospace';
+    ctx.fillText(label, x, y - 8);
+    roundRect(ctx, x, y, w, h, 6);
+    ctx.fillStyle = '#0a0e14';
+    ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = '#1d2735'; ctx.stroke();
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '17px ui-monospace, Menlo, monospace';
+    ctx.fillText(value, x + 14, y + h/2 + 6);
+  }
+
+  drawLogin(false);
+  const loginTexture = new THREE.CanvasTexture(loginCanvas);
+  loginTexture.colorSpace = THREE.SRGBColorSpace;
+  loginTexture.minFilter = THREE.LinearFilter;   // no mipmaps: avoid edge bleed
+  loginTexture.generateMipmaps = false;
+
+  // =========================================================================
+  // 2) THREE.JS SCENE SETUP
+  // =========================================================================
+  const canvas = document.getElementById('gl');
+  const renderer = new THREE.WebGLRenderer({
+    canvas, antialias: true, alpha: true   // alpha so the DOM desktop shows through
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0x000000, 0);       // fully transparent clear
+
+  const scene = new THREE.Scene();
+
+  // Orthographic-ish framing via a perspective camera positioned so the plane
+  // fills the view. We compute the world width/height the plane should span
+  // and place the camera at a distance where it fits the viewport.
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+  camera.position.set(0, 0, 10);
+  camera.lookAt(0, 0, 0);
+
+  // Lighting: a key light + ambient so the flipping tiles catch highlights and
+  // their back faces fall into shadow as they tumble (gives the 3D depth read).
+  scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+  const key = new THREE.DirectionalLight(0xffffff, 1.1);
+  key.position.set(2, 3, 6);
+  scene.add(key);
+  // faint red rim light for the heist mood
+  const rim = new THREE.DirectionalLight(0xff4d4d, 0.4);
+  rim.position.set(-4, -2, 3);
+  scene.add(rim);
+
+  // ---- Compute the plane's world dimensions to match the login aspect ratio
+  //      and (re)fit the camera on resize. We keep a fixed world height and
+  //      derive width from the texture aspect.
+  const PLANE_H = 6;                         // world units tall
+  const PLANE_W = PLANE_H * (TEX_W / TEX_H); // preserve login aspect ratio
+
+  // =========================================================================
+  // 3) BUILD THE TILE GRID
+  //    One small PlaneGeometry per tile. Each tile is parented to a pivot
+  //    Object3D placed at the tile's BOTTOM edge, so rotating the pivot about
+  //    X flips the tile backward like a falling domino. UVs are set so each
+  //    tile samples exactly its slice of the login texture -> seamless at rest.
+  // =========================================================================
+  const tileW = PLANE_W / COLS;
+  const tileH = PLANE_H / ROWS;
+
+  // Shared material settings; each tile gets its own material instance so we
+  // can fade individual tiles (opacity) independently late in their fall.
+  function makeTileMaterial() {
+    return new THREE.MeshStandardMaterial({
+      map: loginTexture,
+      roughness: 0.55,
+      metalness: 0.15,
+      side: THREE.DoubleSide,    // see the back of tiles as they flip
+      transparent: true,
+      opacity: 1.0
+    });
+  }
+
+  const tiles = [];   // each: { pivot, mesh, edges, col, row, delay, ... }
+  const gridGroup = new THREE.Group();
+  scene.add(gridGroup);
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      // Tile geometry centered at origin; we offset via the pivot/mesh.
+      const geo = new THREE.PlaneGeometry(tileW, tileH);
+
+      // ---- Procedural UVs: map this tile to its slice of the texture. ----
+      // PlaneGeometry default UVs run 0..1 across the quad. We remap to the
+      // sub-rectangle [u0..u1] x [v0..v1]. Note texture V is bottom-up, and
+      // our row index r counts from the TOP, so flip vertically.
+      const u0 = c / COLS, u1 = (c + 1) / COLS;
+      const vTop = 1 - r / ROWS;             // top edge of this row in UV space
+      const vBot = 1 - (r + 1) / ROWS;       // bottom edge
+      const uv = geo.attributes.uv;
+      // PlaneGeometry vertex order: 0=TL, 1=TR, 2=BL, 3=BR
+      uv.setXY(0, u0, vTop);
+      uv.setXY(1, u1, vTop);
+      uv.setXY(2, u0, vBot);
+      uv.setXY(3, u1, vBot);
+      uv.needsUpdate = true;
+
+      const mat = makeTileMaterial();
+      const mesh = new THREE.Mesh(geo, mat);
+
+      // World position of this tile's CENTER (grid centered on origin).
+      const cxw = -PLANE_W/2 + (c + 0.5) * tileW;
+      const cyw =  PLANE_H/2 - (r + 0.5) * tileH;
+
+      // Pivot at the tile's BOTTOM edge so rotation.x tumbles it backward.
+      const pivot = new THREE.Object3D();
+      pivot.position.set(cxw, cyw - tileH/2, 0);
+      // Mesh sits half a tile ABOVE the pivot so its geometry spans correctly.
+      mesh.position.set(0, tileH/2, 0);
+      pivot.add(mesh);
+      gridGroup.add(pivot);
+
+      // ---- Glowing red edge outline (Tron circuit feel). Hidden at rest,
+      //      fades in as the tile separates. EdgesGeometry on the tile quad.
+      const edgeGeo = new THREE.EdgesGeometry(geo);
+      const edgeMat = new THREE.LineBasicMaterial({
+        color: 0xff4d4d, transparent: true, opacity: 0.0
+      });
+      const edges = new THREE.LineSegments(edgeGeo, edgeMat);
+      edges.position.copy(mesh.position);
+      pivot.add(edges);
+
+      // ---- Diagonal cascade timing. Stagger by (col+row): the wave sweeps
+      //      from the top-left corner (0,0) toward bottom-right. Normalized
+      //      so the last tile starts near the end of the stagger window.
+      const diag = (c + r) / (COLS + ROWS - 2);   // 0..1 across the diagonal
+      const STAGGER_WINDOW = 0.9;                  // seconds spread of the wave
+      const delay = diag * STAGGER_WINDOW;
+
+      tiles.push({
+        pivot, mesh, mat, edges, edgeMat,
+        col: c, row: r, delay,
+        // small per-tile randomization keeps it organic but still orderly
+        spin: (Math.random() - 0.5) * 1.2,        // slight z-tumble
+        drift: (Math.random() - 0.5) * 0.8,       // slight sideways drift
+        homePos: pivot.position.clone(),
+      });
+    }
+  }
+
+  // =========================================================================
+  // 4) ANIMATION STATE MACHINE
+  //    phases: 'idle' (login shown) -> 'flash' (grid lines) -> 'collapse'
+  //    -> 'done' (fully revealed). Replay resets all tiles to home.
+  // =========================================================================
+  let phase = 'idle';
+  let phaseStart = 0;           // performance.now() ms at phase entry
+  const AUTO_TRIGGER_MS = 1200; // ~1.2s per spec
+  const FLASH_MS = 260;         // grid-line flash duration
+  const GRAVITY = 9.5;          // world units / s^2
+  const FALL_DURATION = 1.6;    // seconds per tile from break to faded out
+
+  function resetTiles() {
+    for (const t of tiles) {
+      t.pivot.position.copy(t.homePos);
+      t.pivot.rotation.set(0, 0, 0);
+      t.mesh.rotation.set(0, 0, 0);
+      t.mat.opacity = 1.0;
+      t.edgeMat.opacity = 0.0;
+      t.vy = 0; t.started = false; t.tElapsed = 0;
+    }
+  }
+
+  function startSequence() {
+    drawLogin(false);
+    loginTexture.needsUpdate = true;
+    resetTiles();
+    gridGroup.visible = true;
+    canvas.style.pointerEvents = 'auto';   // canvas catches clicks again
+    phase = 'idle';
+    phaseStart = performance.now();
+    document.getElementById('clueWindow').style.display = 'none';
+  }
+
+  // Allow clicking the glass to trigger early (per spec: "or on a click").
+  canvas.addEventListener('pointerdown', () => {
+    if (phase === 'idle') enterFlash();
+  });
+
+  function enterFlash() {
+    drawLogin(true);                  // redraw WITH the red grid-line flash
+    loginTexture.needsUpdate = true;
+    phase = 'flash';
+    phaseStart = performance.now();
+  }
+
+  function enterCollapse() {
+    drawLogin(false);                 // drop the flash overlay
+    loginTexture.needsUpdate = true;
+    phase = 'collapse';
+    phaseStart = performance.now();
+  }
+
+  // =========================================================================
+  // 5) RESIZE / CAMERA FIT
+  //    Fit the camera so PLANE_W x PLANE_H exactly fills the viewport, using
+  //    "cover" semantics (fill the screen, allow slight overscan if needed).
+  // =========================================================================
+  function resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+
+    // Distance so the plane height fills the vertical FOV; if the viewport is
+    // narrower than the plane aspect, back off so width fits too (cover).
+    const vFOV = THREE.MathUtils.degToRad(camera.fov);
+    const distForH = (PLANE_H / 2) / Math.tan(vFOV / 2);
+    const hFOV = 2 * Math.atan(Math.tan(vFOV / 2) * camera.aspect);
+    const distForW = (PLANE_W / 2) / Math.tan(hFOV / 2);
+    camera.position.z = Math.max(distForH, distForW);
+
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // =========================================================================
+  // 6) MAIN LOOP
+  // =========================================================================
+  let lastT = performance.now();
+  function animate(now) {
+    requestAnimationFrame(animate);
+    const dt = Math.min((now - lastT) / 1000, 0.05);  // clamp dt for stability
+    lastT = now;
+
+    if (phase === 'idle') {
+      if (now - phaseStart >= AUTO_TRIGGER_MS) enterFlash();
+    } else if (phase === 'flash') {
+      if (now - phaseStart >= FLASH_MS) enterCollapse();
+    } else if (phase === 'collapse') {
+      const tSeq = (now - phaseStart) / 1000;   // seconds since collapse began
+      let anyAlive = false;
+
+      for (const t of tiles) {
+        if (tSeq < t.delay) { anyAlive = true; continue; }  // not yet released
+
+        if (!t.started) { t.started = true; t.vy = -0.4; t.tElapsed = 0; }
+        t.tElapsed += dt;
+
+        // Edge glow: snap bright at release, then fade with the tile.
+        const lifeFrac = Math.min(t.tElapsed / FALL_DURATION, 1);
+        t.edgeMat.opacity = (1 - lifeFrac) * 0.9;
+
+        // Domino flip: rotate the pivot backward about X (top edge tips away).
+        const flip = Math.min(t.tElapsed * 3.2, Math.PI * 0.85);
+        t.pivot.rotation.x = -flip;
+        // subtle secondary tumble for organic-but-orderly motion
+        t.mesh.rotation.z = t.spin * lifeFrac;
+
+        // Gravity + slight backward (−z) recede + sideways drift.
+        t.vy -= GRAVITY * dt;
+        t.pivot.position.y += t.vy * dt;
+        t.pivot.position.z -= 2.0 * dt;            // recede into depth
+        t.pivot.position.x += t.drift * dt;
+
+        // Fade out over the back half of the fall.
+        t.mat.opacity = 1 - Math.max(0, (lifeFrac - 0.5) / 0.5);
+
+        if (lifeFrac < 1) anyAlive = true;
+      }
+
+      if (!anyAlive) {
+        phase = 'done';
+        gridGroup.visible = false;   // hide spent geometry; desktop fully shown
+        // Let clicks pass THROUGH the (now transparent) WebGL canvas to the
+        // DOM desktop beneath, so clue.txt becomes interactive.
+        canvas.style.pointerEvents = 'none';
+      }
+    }
+
+    renderer.render(scene, camera);
+  }
+  requestAnimationFrame(animate);
+
+  // =========================================================================
+  // 7) DOM WIRING: clue.txt window + Replay button
+  // =========================================================================
+  const clueWindow = document.getElementById('clueWindow');
+  document.getElementById('clueIcon').addEventListener('click', () => {
+    clueWindow.style.display = 'block';
+  });
+  document.getElementById('clueClose').addEventListener('click', () => {
+    clueWindow.style.display = 'none';
+  });
+  document.getElementById('replay').addEventListener('click', startSequence);
+
+  // Kick it off.
+  startSequence();
+  </script>
+</body>
+</html>

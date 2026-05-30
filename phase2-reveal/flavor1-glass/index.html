@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Shatter Reveal — Glass Shatter</title>
+<style>
+  /* ----------------------------------------------------------------------
+     Classic Heist visual language. Near-black bg, red accents, terminal vibe.
+     The DOM here is mostly framing + the secure desktop that lives BEHIND the
+     3D canvas. The thing that actually shatters is a CanvasTexture on WebGL
+     geometry, drawn in JS (see the canvas-drawing section below).
+     ---------------------------------------------------------------------- */
+  :root {
+    --bg:      #0a0e14;
+    --panel:   #121822;
+    --border:  #1d2735;
+    --ink:     #e6edf3;
+    --dim:     #8b98a5;
+    --red:     #ff4d4d;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    overflow: hidden;
+  }
+
+  /* The WebGL canvas fills the viewport and floats above the desktop. */
+  #scene {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    z-index: 10;
+  }
+
+  /* ------------------------------------------------------------------
+     SECURE DESKTOP (placeholder beat 5). Sits behind the WebGL canvas.
+     We darken it further than the login bg so the reveal reads as "going
+     deeper" into the system. Pointer events are gated until the shatter
+     finishes (see JS: enableDesktop()).
+     ------------------------------------------------------------------ */
+  #desktop {
+    position: fixed;
+    inset: 0;
+    z-index: 1;                     /* behind #scene (z 10) */
+    background:
+      radial-gradient(1200px 800px at 70% 20%, #0d1420 0%, #070a0f 60%, #05070b 100%);
+    pointer-events: none;           /* disabled until reveal completes */
+  }
+  #desktop .topbar {
+    height: 34px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 14px;
+    background: rgba(18, 24, 34, 0.85);
+    border-bottom: 1px solid var(--border);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    color: var(--dim);
+  }
+  #desktop .topbar .lit { color: var(--red); }
+  #desktop .topbar .spacer { flex: 1; }
+
+  /* Desktop icon for clue.txt */
+  .icon {
+    position: absolute;
+    top: 90px;
+    left: 60px;
+    width: 84px;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+    color: var(--ink);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+  }
+  .icon .glyph {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 6px;
+    border-radius: 10px;
+    background: linear-gradient(160deg, #182232, #0e141d);
+    border: 1px solid var(--border);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    color: var(--red);
+  }
+  .icon:hover .glyph { border-color: var(--red); }
+
+  /* The little "file viewer" window that shows the clue */
+  #fileWindow {
+    position: absolute;
+    top: 140px;
+    left: 180px;
+    width: 320px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    display: none;
+    overflow: hidden;
+  }
+  #fileWindow .titlebar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: #0e141d;
+    border-bottom: 1px solid var(--border);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    color: var(--dim);
+  }
+  #fileWindow .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--red); cursor: pointer;
+  }
+  #fileWindow .body {
+    padding: 22px 18px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  #fileWindow .label { color: var(--dim); font-size: 12px; margin-bottom: 10px; }
+  #fileWindow .code {
+    font-size: 44px;
+    letter-spacing: 10px;
+    color: var(--red);
+    text-shadow: 0 0 18px rgba(255,77,77,0.55);
+  }
+
+  /* Replay button — always on top */
+  #replay {
+    position: fixed;
+    z-index: 20;
+    right: 18px;
+    bottom: 18px;
+    padding: 10px 18px;
+    background: var(--panel);
+    color: var(--ink);
+    border: 1px solid var(--red);
+    border-radius: 6px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px;
+    cursor: pointer;
+    box-shadow: 0 0 18px rgba(255,77,77,0.25);
+    transition: background 0.15s, transform 0.05s;
+  }
+  #replay:hover { background: #1a2230; }
+  #replay:active { transform: translateY(1px); }
+
+  .hint {
+    position: fixed;
+    z-index: 20;
+    left: 18px;
+    bottom: 18px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    color: var(--dim);
+    opacity: 0.7;
+  }
+</style>
+</head>
+<body>
+
+  <!-- BEAT 5: secure desktop, revealed behind the shattering glass -->
+  <div id="desktop">
+    <div class="topbar">
+      <span class="lit">●</span>
+      <span>SECURE NODE // mainframe.cityspies.net</span>
+      <span class="spacer"></span>
+      <span>root@core</span>
+    </div>
+
+    <div class="icon" id="clueIcon">
+      <div class="glyph">▣</div>
+      <div>clue.txt</div>
+    </div>
+
+    <div id="fileWindow">
+      <div class="titlebar">
+        <span class="dot" id="closeFile"></span>
+        <span>clue.txt — /root/secure</span>
+      </div>
+      <div class="body">
+        <div class="label">DECRYPTED PAYLOAD:</div>
+        <div class="code">WXYZ</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BEAT 4: the WebGL stage. The login glass + shatter live here. -->
+  <canvas id="scene"></canvas>
+
+  <button id="replay">⟳ Replay</button>
+  <div class="hint">click the glass to shatter early</div>
+
+  <!--
+    Import map: pin a specific Three.js version from jsDelivr. The "three"
+    bare specifier resolves to the ESM build; "three/addons/" maps to the
+    examples/jsm tree (not strictly needed here, but wired for the synthesis
+    step in case a flavor wants postprocessing or controls).
+  -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <script type="module">
+  import * as THREE from 'three';
+
+  // ======================================================================
+  //  GLASS SHATTER  —  flavor 1
+  //
+  //  Concept: the login screen is a pane of glass. A single IMPACT POINT
+  //  near the center cracks it into a RADIAL fan of long thin triangular
+  //  shards (cracked-windshield / shot-phone-screen look). Shards near the
+  //  impact are small; shards toward the edges are large. On shatter they
+  //  tip forward, catch a glint, then tumble away toward the camera under
+  //  gravity, uncovering the secure desktop.
+  //
+  //  Everything (geometry + the login image) is generated in JS so it works
+  //  as a single static file on GitHub Pages.
+  // ======================================================================
+
+  // ---- tunables ---------------------------------------------------------
+  const PLANE_W = 16;          // world units, glass plane width
+  const PLANE_H = 9;           // world units, glass plane height (16:9)
+  const AUTO_SHATTER_MS = 1200;// auto-trigger after this delay
+  const RAY_COUNT = 26;        // number of radial cracks (more = finer fan)
+  const RINGS = [0.0, 0.10, 0.26, 0.50, 0.85, 1.30]; // normalized impact radii
+  const GRAVITY = -26;         // world units / s^2
+  const GLINT_MS = 260;        // duration of the light-catch glint
+
+  // ---- renderer / scene / camera ---------------------------------------
+  const canvas = document.getElementById('scene');
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    alpha: true,               // let the desktop show through behind the glass
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  const scene = new THREE.Scene();
+
+  // Perspective camera so shards gain real depth as they fly at us.
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+  const CAM_Z = PLANE_H / (2 * Math.tan((45 * Math.PI / 180) / 2)) + 0.5;
+  camera.position.set(0, 0, CAM_Z);   // framed so the plane fills the view
+  const camBase = camera.position.clone();
+
+  // ---- lighting (so glints + bevels read as glass) ----------------------
+  scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+  const key = new THREE.DirectionalLight(0xffffff, 1.1);
+  key.position.set(-4, 6, 8);
+  scene.add(key);
+  // A movable "glint" light that sweeps across the shards at impact.
+  const glint = new THREE.PointLight(0xffffff, 0.0, 40, 2.0);
+  glint.position.set(0, 0, 6);
+  scene.add(glint);
+
+  // ----------------------------------------------------------------------
+  //  STEP 1 — draw the fake LOGIN SCREEN onto a 2D canvas → CanvasTexture.
+  //  We control every pixel, so no html2canvas / DOM screenshot needed.
+  // ----------------------------------------------------------------------
+  function drawLogin() {
+    const c = document.createElement('canvas');
+    // Texture resolution: keep 16:9 so it maps cleanly onto the plane.
+    c.width = 1280; c.height = 720;
+    const x = c.getContext('2d');
+
+    // background
+    x.fillStyle = '#0a0e14';
+    x.fillRect(0, 0, c.width, c.height);
+    // faint scanline texture for a terminal vibe
+    x.globalAlpha = 0.05;
+    x.fillStyle = '#2a3a52';
+    for (let yy = 0; yy < c.height; yy += 4) x.fillRect(0, yy, c.width, 1);
+    x.globalAlpha = 1;
+
+    // centered login card
+    const cw = 520, ch = 360;
+    const cx = (c.width - cw) / 2, cy = (c.height - ch) / 2;
+    roundRect(x, cx, cy, cw, ch, 16);
+    x.fillStyle = '#121822';
+    x.fill();
+    x.lineWidth = 2;
+    x.strokeStyle = '#1d2735';
+    x.stroke();
+
+    // title
+    x.fillStyle = '#e6edf3';
+    x.font = '600 30px ui-monospace, Menlo, monospace';
+    x.textAlign = 'center';
+    x.fillText('SECURE ACCESS', c.width / 2, cy + 58);
+
+    x.fillStyle = '#8b98a5';
+    x.font = '14px ui-monospace, Menlo, monospace';
+    x.fillText('mainframe.cityspies.net', c.width / 2, cy + 84);
+
+    // input fields
+    field(x, cx + 40, cy + 120, cw - 80, 'USERNAME', 'agent.zero');
+    field(x, cx + 40, cy + 190, cw - 80, 'PASSWORD', '••••••••••••');
+
+    // login button
+    roundRect(x, cx + 40, cy + 262, cw - 80, 48, 8);
+    x.fillStyle = '#1a2230';
+    x.fill();
+    x.strokeStyle = '#ff4d4d';
+    x.lineWidth = 1.5;
+    x.stroke();
+    x.fillStyle = '#e6edf3';
+    x.font = '600 17px ui-monospace, Menlo, monospace';
+    x.fillText('AUTHENTICATE', c.width / 2, cy + 292);
+
+    // ACCESS DENIED stamp, rotated, semi-transparent
+    x.save();
+    x.translate(c.width / 2, cy + ch - 6);
+    x.rotate(-0.14);
+    x.globalAlpha = 0.92;
+    x.lineWidth = 4;
+    x.strokeStyle = '#ff4d4d';
+    x.font = '800 40px ui-monospace, Menlo, monospace';
+    const stamp = 'ACCESS DENIED';
+    const w = x.measureText(stamp).width;
+    roundRect(x, -w / 2 - 16, -36, w + 32, 52, 8);
+    x.stroke();
+    x.fillStyle = 'rgba(255,77,77,0.95)';
+    x.fillText(stamp, 0, 2);
+    x.restore();
+
+    return c;
+
+    // -- 2D canvas helpers --
+    function roundRect(ctx, rx, ry, rw, rh, r) {
+      ctx.beginPath();
+      ctx.moveTo(rx + r, ry);
+      ctx.arcTo(rx + rw, ry, rx + rw, ry + rh, r);
+      ctx.arcTo(rx + rw, ry + rh, rx, ry + rh, r);
+      ctx.arcTo(rx, ry + rh, rx, ry, r);
+      ctx.arcTo(rx, ry, rx + rw, ry, r);
+      ctx.closePath();
+    }
+    function field(ctx, fx, fy, fw, label, value) {
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#8b98a5';
+      ctx.font = '12px ui-monospace, Menlo, monospace';
+      ctx.fillText(label, fx, fy - 8);
+      roundRect(ctx, fx, fy, fw, 40, 6);
+      ctx.fillStyle = '#0a0e14';
+      ctx.fill();
+      ctx.strokeStyle = '#1d2735';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = '#e6edf3';
+      ctx.font = '16px ui-monospace, Menlo, monospace';
+      ctx.fillText(value, fx + 14, fy + 26);
+      ctx.textAlign = 'center';
+    }
+  }
+
+  const loginCanvas = drawLogin();
+  const loginTexture = new THREE.CanvasTexture(loginCanvas);
+  loginTexture.colorSpace = THREE.SRGBColorSpace;
+  loginTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+  // ----------------------------------------------------------------------
+  //  STEP 2 — build the RADIAL shard geometry.
+  //
+  //  We lay down concentric rings around an impact point and shoot rays out
+  //  from the impact. Each annular sector (between two rings, two rays) is
+  //  cut into two triangles → long thin triangular shards radiating outward.
+  //  The innermost ring is a fan of triangles meeting at the impact point.
+  //
+  //  Crucially, every shard's UVs are computed from its plane position, so
+  //  the login image stays perfectly continuous across all the cracks until
+  //  the shards move. That continuity is what sells "it was one pane".
+  // ----------------------------------------------------------------------
+  const shards = [];                 // { mesh, center, vel, angVel } records
+  const shardGroup = new THREE.Group();
+  scene.add(shardGroup);
+
+  // Impact point in PLANE-LOCAL coordinates (centered, slightly above middle).
+  const impact = new THREE.Vector2(0.6, 0.8); // world units off-center for interest
+
+  // half extents
+  const HW = PLANE_W / 2, HH = PLANE_H / 2;
+
+  // Convert a plane-local (x,y) into a UV on the login texture.
+  // Plane spans [-HW,HW] x [-HH,HH]; UV spans [0,1]; v flipped (texture origin).
+  function uvFor(x, y) {
+    return new THREE.Vector2((x + HW) / PLANE_W, (y + HH) / PLANE_H);
+  }
+
+  // Clamp a radial point so it never escapes the plane rectangle. We march
+  // along a ray from the impact and stop at the rectangle boundary for the
+  // outer ring, giving big edge shards that still tile the full image.
+  function radialPoint(angle, radius) {
+    // radius is normalized 0..~1.3; scale by the plane's half-diagonal.
+    const reach = Math.hypot(HW, HH);
+    let px = impact.x + Math.cos(angle) * radius * reach;
+    let py = impact.y + Math.sin(angle) * radius * reach;
+    // clamp into rectangle
+    px = Math.max(-HW, Math.min(HW, px));
+    py = Math.max(-HH, Math.min(HH, py));
+    return new THREE.Vector2(px, py);
+  }
+
+  // Build one triangular shard mesh from three plane-local 2D points.
+  function makeShard(a, b, cc) {
+    const geo = new THREE.BufferGeometry();
+    // small per-shard random thickness gives glass a bevel-y, faceted look
+    const z = (Math.random() - 0.5) * 0.04;
+    const positions = new Float32Array([
+      a.x, a.y, z,
+      b.x, b.y, z,
+      cc.x, cc.y, z,
+    ]);
+    const ua = uvFor(a.x, a.y), ub = uvFor(b.x, b.y), uc = uvFor(cc.x, cc.y);
+    const uvs = new Float32Array([ua.x, ua.y, ub.x, ub.y, uc.x, uc.y]);
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    geo.computeVertexNormals();
+
+    // Centroid (plane-local) — used as the shard's pivot so it spins about
+    // its own center, and to seed an outward velocity direction.
+    const center = new THREE.Vector3(
+      (a.x + b.x + cc.x) / 3,
+      (a.y + b.y + cc.y) / 3,
+      0
+    );
+    // Re-center the geometry on its centroid so rotation looks natural; we
+    // then position the mesh at that centroid. (translate verts by -center)
+    geo.translate(-center.x, -center.y, 0);
+
+    const mat = new THREE.MeshStandardMaterial({
+      map: loginTexture,
+      metalness: 0.0,
+      roughness: 0.55,
+      side: THREE.DoubleSide,       // shards seen from behind as they tumble
+      transparent: false,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(center);
+    shardGroup.add(mesh);
+
+    // velocity seed: mostly outward from impact + a push toward camera (+z)
+    const outward = new THREE.Vector2(center.x - impact.x, center.y - impact.y);
+    if (outward.lengthSq() < 1e-6) outward.set(0, 1);
+    outward.normalize();
+    const dist = Math.hypot(center.x - impact.x, center.y - impact.y);
+
+    shards.push({
+      mesh,
+      home: center.clone(),          // resting position (for replay reset)
+      vel: new THREE.Vector3(0, 0, 0),
+      angVel: new THREE.Vector3(0, 0, 0),
+      outward,
+      dist,
+    });
+  }
+
+  // Generate the fan. For each ring band, for each angular sector, emit two
+  // triangles (a quad split). The innermost band degenerates into triangles
+  // that share the impact point.
+  function buildShards() {
+    const angStep = (Math.PI * 2) / RAY_COUNT;
+    // small random jitter per ray so cracks aren't perfectly symmetric
+    const rayJitter = [];
+    for (let i = 0; i < RAY_COUNT; i++) {
+      rayJitter.push((Math.random() - 0.5) * angStep * 0.35);
+    }
+
+    for (let ri = 0; ri < RINGS.length - 1; ri++) {
+      const r0 = RINGS[ri];
+      const r1 = RINGS[ri + 1];
+      for (let ai = 0; ai < RAY_COUNT; ai++) {
+        const a0 = ai * angStep + rayJitter[ai];
+        const a1 = (ai + 1) * angStep + rayJitter[(ai + 1) % RAY_COUNT];
+
+        const pOuter0 = radialPoint(a0, r1);
+        const pOuter1 = radialPoint(a1, r1);
+
+        if (r0 === 0.0) {
+          // innermost: single triangle from impact point to outer edge
+          makeShard(impact.clone(), pOuter0, pOuter1);
+        } else {
+          const pInner0 = radialPoint(a0, r0);
+          const pInner1 = radialPoint(a1, r0);
+          // split the quad (inner0, inner1, outer1, outer0) into 2 triangles
+          makeShard(pInner0, pInner1, pOuter1);
+          makeShard(pInner0, pOuter1, pOuter0);
+        }
+      }
+    }
+  }
+  buildShards();
+
+  // ----------------------------------------------------------------------
+  //  STEP 3 — the white IMPACT FLASH (a full-screen additive quad we fade).
+  // ----------------------------------------------------------------------
+  const flashMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0,
+    depthTest: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const flash = new THREE.Mesh(new THREE.PlaneGeometry(PLANE_W * 2, PLANE_H * 2), flashMat);
+  flash.position.z = 2;              // in front of shards
+  flash.renderOrder = 999;
+  scene.add(flash);
+
+  // ----------------------------------------------------------------------
+  //  STATE MACHINE: 'intact' → 'shattered'. Plus timers for flash/glint/shake.
+  // ----------------------------------------------------------------------
+  let state = 'intact';
+  let shatterT = 0;                  // seconds since shatter began
+  let shakeT = 0;                    // remaining camera-shake time
+
+  function shatter() {
+    if (state === 'shattered') return;
+    state = 'shattered';
+    shatterT = 0;
+    shakeT = 0.32;                   // seconds of camera shake
+
+    // kick the flash + glint
+    flashMat.opacity = 0.9;
+    glint.intensity = 3.2;
+    glint.position.set(impact.x, impact.y, 4);
+
+    // assign per-shard launch velocities. Near-impact shards launch faster
+    // (they took the hit); all shards tip forward (+z, toward camera) and
+    // gain a random tumble. Outer (bigger) shards fall more ballistically.
+    for (const s of shards) {
+      const speedBoost = THREE.MathUtils.clamp(2.6 - s.dist * 0.22, 0.6, 2.6);
+      s.vel.set(
+        s.outward.x * (1.2 + Math.random() * 1.4) * speedBoost,
+        s.outward.y * (1.2 + Math.random() * 1.4) * speedBoost + 1.5,
+        (2.5 + Math.random() * 3.5) * speedBoost   // toward camera
+      );
+      s.angVel.set(
+        (Math.random() - 0.5) * 6,
+        (Math.random() - 0.5) * 6,
+        (Math.random() - 0.5) * 6
+      );
+    }
+  }
+
+  function reset() {
+    state = 'intact';
+    shatterT = 0;
+    shakeT = 0;
+    flashMat.opacity = 0;
+    glint.intensity = 0;
+    camera.position.copy(camBase);
+    for (const s of shards) {
+      s.mesh.position.copy(s.home);
+      s.mesh.rotation.set(0, 0, 0);
+      s.mesh.material.opacity = 1;
+      s.mesh.material.transparent = false;
+      s.mesh.visible = true;
+      s.vel.set(0, 0, 0);
+      s.angVel.set(0, 0, 0);
+    }
+    shardGroup.visible = true;
+    hideFile();
+    document.getElementById('desktop').style.pointerEvents = 'none';
+  }
+
+  // ----------------------------------------------------------------------
+  //  ANIMATION LOOP
+  // ----------------------------------------------------------------------
+  const clock = new THREE.Clock();
+
+  function tick() {
+    const dt = Math.min(clock.getDelta(), 0.05);  // clamp to avoid huge steps
+
+    if (state === 'shattered') {
+      shatterT += dt;
+
+      // fade the flash quickly
+      if (flashMat.opacity > 0) flashMat.opacity = Math.max(0, flashMat.opacity - dt * 4.5);
+
+      // sweep + decay the glint light over GLINT_MS
+      const g = THREE.MathUtils.clamp(1 - (shatterT * 1000) / GLINT_MS, 0, 1);
+      glint.intensity = 3.2 * g;
+      glint.position.x = impact.x + shatterT * 6;   // sweep sideways
+
+      // integrate shard motion (semi-implicit Euler)
+      for (const s of shards) {
+        if (!s.mesh.visible) continue;
+        s.vel.y += GRAVITY * dt;
+        s.mesh.position.addScaledVector(s.vel, dt);
+        s.mesh.rotation.x += s.angVel.x * dt;
+        s.mesh.rotation.y += s.angVel.y * dt;
+        s.mesh.rotation.z += s.angVel.z * dt;
+
+        // fade out shards as they pass the camera / fall far below.
+        // Use the LIVE camera z (camBase) so the threshold is correct at any
+        // viewport aspect, not the initial CAM_Z estimate.
+        if (s.mesh.position.z > camBase.z - 1.5 || s.mesh.position.y < -HH * 3) {
+          s.mesh.material.transparent = true;
+          s.mesh.material.opacity = Math.max(0, s.mesh.material.opacity - dt * 2.2);
+          if (s.mesh.material.opacity <= 0.01) s.mesh.visible = false;
+        }
+      }
+
+      // hide the whole group + enable the desktop once shards are gone
+      if (shatterT > 1.7) enableDesktop();
+    }
+
+    // camera shake (decays). Random jitter around the base position.
+    if (shakeT > 0) {
+      shakeT -= dt;
+      const amp = THREE.MathUtils.clamp(shakeT / 0.32, 0, 1) * 0.18;
+      camera.position.set(
+        camBase.x + (Math.random() - 0.5) * amp,
+        camBase.y + (Math.random() - 0.5) * amp,
+        camBase.z + (Math.random() - 0.5) * amp
+      );
+    } else if (state === 'shattered') {
+      camera.position.copy(camBase);
+    }
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(tick);
+  }
+
+  let desktopEnabled = false;
+  function enableDesktop() {
+    if (desktopEnabled) return;
+    desktopEnabled = true;
+    shardGroup.visible = false;
+    document.getElementById('desktop').style.pointerEvents = 'auto';
+  }
+
+  // ----------------------------------------------------------------------
+  //  SIZING — keep the plane filling the viewport regardless of aspect.
+  //  We frame the camera so the 16:9 plane is always fully visible (letter/
+  //  pillarbox via camera distance), which matches the texture's aspect.
+  // ----------------------------------------------------------------------
+  function resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+
+    // Fit: ensure both plane width and height are visible. Compute the camera
+    // distance needed for each axis and take the farther one.
+    const vFov = (45 * Math.PI) / 180;
+    const distH = (PLANE_H / 2) / Math.tan(vFov / 2);
+    const distW = (PLANE_W / 2) / (Math.tan(vFov / 2) * camera.aspect);
+    const dist = Math.max(distH, distW) + 0.4;
+    camBase.set(0, 0, dist);
+    if (state !== 'shattered' || shakeT <= 0) camera.position.copy(camBase);
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ----------------------------------------------------------------------
+  //  INTERACTION
+  // ----------------------------------------------------------------------
+  // click the glass canvas to shatter early
+  canvas.addEventListener('pointerdown', () => {
+    if (state === 'intact') shatter();
+  });
+
+  document.getElementById('replay').addEventListener('click', (e) => {
+    e.stopPropagation();
+    reset();
+    desktopEnabled = false;
+    // re-arm the auto shatter
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(() => { if (state === 'intact') shatter(); }, AUTO_SHATTER_MS);
+  });
+
+  // desktop: clue.txt window
+  const fileWindow = document.getElementById('fileWindow');
+  function showFile() { fileWindow.style.display = 'block'; }
+  function hideFile() { fileWindow.style.display = 'none'; }
+  document.getElementById('clueIcon').addEventListener('click', showFile);
+  document.getElementById('closeFile').addEventListener('click', hideFile);
+
+  // ----------------------------------------------------------------------
+  //  GO
+  // ----------------------------------------------------------------------
+  let autoTimer = setTimeout(() => { if (state === 'intact') shatter(); }, AUTO_SHATTER_MS);
+  tick();
+  </script>
+</body>
+</html>
