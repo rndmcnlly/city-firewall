@@ -19,6 +19,7 @@ import { initBeat0 } from './beat0.js';
 import { initLogin } from './login.js';
 import { initTyping } from './typing.js';
 import { initBeat5 } from './beat5.js';
+import { snapshotElement } from './dom-snapshot.js';
 
 const stage   = document.getElementById('stage');
 const scenes  = {
@@ -122,6 +123,7 @@ function ensureGrid() {
   try {
     grid = initGridCollapse({
       canvas: document.getElementById('gl'),
+      loginImage: loginShot,    // true snapshot of Beat 1 (may be null -> painted fallback)
       onComplete: () => document.dispatchEvent(new CustomEvent('reveal-complete')),
     });
   } catch (err) {
@@ -139,12 +141,40 @@ function ensureGrid() {
   return grid;
 }
 
+/* ---- true snapshot of the login screen --------------------------------------
+   Captured once, the moment we arrive on the login from the wake sweep (while
+   the sweep still covers the screen). Beat 4 slices THIS exact image rather
+   than a hand-painted replica, so what shatters is literally what the kid saw.
+   If rasterization fails, loginShot stays null and grid-collapse paints its
+   own replica as before. */
+let loginShot = null;
+function captureLoginSnapshot() {
+  if (loginShot) return;
+  // wait a frame so the just-activated login scene has laid out + painted
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    snapshotElement(scenes.login, {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      scale: 2,
+      background: '#05070a',
+    }).then((canvas) => {
+      loginShot = canvas;
+    }).catch((err) => {
+      console.warn('[orchestrator] login snapshot failed, will use painted replica:', err);
+      loginShot = null;
+    });
+  }));
+}
+
 /* ============================================================================
    THE HANDOFF CHAIN
    ========================================================================== */
 
 document.addEventListener('begin-activity', () => {
-  powerSweep(() => showScene('login'));
+  powerSweep(() => {
+    showScene('login');
+    captureLoginSnapshot();   // grab the true login image while the sweep covers it
+  });
 });
 
 document.addEventListener('login-bypassed', () => {

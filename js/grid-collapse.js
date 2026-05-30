@@ -2,9 +2,15 @@
    BEAT 4 -- GRID COLLAPSE reveal (Three.js)
    ----------------------------------------------------------------------------
    The login screen is drawn onto a 2D <canvas> and used as a CanvasTexture on a
-   plane sliced into a grid of tiles. On trigger, lasers carve the grid line by
-   line, then the tiles peel away in a diagonal domino cascade, revealing the
-   REAL Beat 5 secure desktop sitting in the DOM behind the (alpha) WebGL canvas.
+   plane sliced into a grid of tiles. The texture's base layer is a TRUE snapshot
+   of the real Beat 1 login (captured by the orchestrator on arrival) when one is
+   provided, otherwise a hand-painted replica. On trigger, lasers carve the grid
+   line by line, then the tiles peel away in a diagonal domino cascade.
+
+   A flat black backing wall sits behind the grid (the WebGL canvas is alpha, so
+   without it the DOM desktop would bleed through the laser gaps). The wall fades
+   out during the collapse, revealing the REAL Beat 5 secure desktop in step with
+   the peeling tiles.
 
    In the standalone prototype this beat revealed its own placeholder desktop and
    ran on a timer. In the synthesis it is a module: the orchestrator calls
@@ -13,7 +19,7 @@
    ========================================================================== */
 import * as THREE from 'three';
 
-export function initGridCollapse({ canvas, onComplete }) {
+export function initGridCollapse({ canvas, onComplete, loginImage = null }) {
   // ---- Grid resolution. 10 columns x 7 rows = 70 tiles (crisp, rhythmic). ----
   const COLS = 10;
   const ROWS = 7;
@@ -37,6 +43,30 @@ export function initGridCollapse({ canvas, onComplete }) {
     const ctx = lctx;
     const W = TEX_W, H = TEX_H;
 
+    // ---- base layer: the TRUE login snapshot if we have one, else a painted
+    //      replica. Either way the laser cuts are overlaid on top afterward. ----
+    if (loginImage) {
+      drawSnapshotCover(ctx, loginImage, W, H);
+    } else {
+      drawPaintedLogin(ctx, W, H);
+    }
+    drawCuts(ctx, W, H);
+  }
+
+  // Draw the snapshot into the texture with "cover" semantics (fill W x H,
+  // cropping the overflow), so the centered login card stays centered and the
+  // texture aspect (1024x720) is fully painted with no letterboxing.
+  function drawSnapshotCover(ctx, img, W, H) {
+    const iw = img.width, ih = img.height;
+    const scale = Math.max(W / iw, H / ih);
+    const dw = iw * scale, dh = ih * scale;
+    const dx = (W - dw) / 2, dy = (H - dh) / 2;
+    ctx.fillStyle = '#05070a';
+    ctx.fillRect(0, 0, W, H);
+    ctx.drawImage(img, dx, dy, dw, dh);
+  }
+
+  function drawPaintedLogin(ctx, W, H) {
     // background: matches #scene-login (radial dark blue-black)
     const bg = ctx.createRadialGradient(W/2, H*0.38, 80, W/2, H/2, W*0.7);
     bg.addColorStop(0, '#0e1622');
@@ -107,7 +137,11 @@ export function initGridCollapse({ canvas, onComplete }) {
     ctx.fillText('FIREWALL BREACHED', 0, 2);
     ctx.restore();
     ctx.textBaseline = 'alphabetic';
+  }
 
+  // Progressive "scorch" cuts the lasers carve, overlaid on whatever base layer
+  // (snapshot or painted) is showing.
+  function drawCuts(ctx, W, H) {
     for (const cut of cuts) {
       ctx.save();
       ctx.lineCap = 'round';
@@ -214,6 +248,23 @@ export function initGridCollapse({ canvas, onComplete }) {
 
   const PLANE_H = 6;
   const PLANE_W = PLANE_H * (TEX_W / TEX_H);
+
+  // ---- Black backing wall -------------------------------------------------
+  // A flat opaque black plane BEHIND the tile grid. Because the WebGL canvas is
+  // alpha:true (clears transparent) and sits over the DOM desktop, without this
+  // wall the desktop bleeds through the gaps the moment the lasers cut. The wall
+  // hides it, then fades out during the collapse so the desktop is revealed in
+  // step with the peeling tiles. Oversized (1.4x) so no edge ever leaks.
+  const wallMat = new THREE.MeshBasicMaterial({
+    color: 0x000000, transparent: true, opacity: 1.0, depthWrite: false,
+  });
+  const wall = new THREE.Mesh(
+    new THREE.PlaneGeometry(PLANE_W * 1.4, PLANE_H * 1.4),
+    wallMat
+  );
+  wall.position.set(0, 0, -0.2);   // just behind the tile grid (tiles at z~0)
+  wall.renderOrder = -1;           // draw first
+  scene.add(wall);
 
   // =========================================================================
   // 3) BUILD THE TILE GRID
@@ -411,6 +462,12 @@ export function initGridCollapse({ canvas, onComplete }) {
       const tSeq = (now - phaseStart) / 1000;
       let anyAlive = false;
 
+      // Fade the black backing wall out across the collapse so the desktop is
+      // revealed in step with the peeling tiles (gone before the last tile).
+      const WALL_FADE_START = 0.15, WALL_FADE_END = 1.0;
+      const wf = (tSeq - WALL_FADE_START) / (WALL_FADE_END - WALL_FADE_START);
+      wallMat.opacity = 1 - Math.min(1, Math.max(0, wf));
+
       for (const t of tiles) {
         if (tSeq < t.delay) { anyAlive = true; continue; }
         if (!t.started) { t.started = true; t.vy = -0.4; t.tElapsed = 0; }
@@ -436,6 +493,8 @@ export function initGridCollapse({ canvas, onComplete }) {
       if (!anyAlive) {
         phase = 'done';
         gridGroup.visible = false;
+        wallMat.opacity = 0;
+        wall.visible = false;
         canvas.style.pointerEvents = 'none';
         if (!completed) {
           completed = true;
@@ -460,6 +519,8 @@ export function initGridCollapse({ canvas, onComplete }) {
     loginTexture.needsUpdate = true;
     resetTiles();
     gridGroup.visible = true;
+    wall.visible = true;
+    wallMat.opacity = 1.0;
     laserGroup.visible = false;
     canvas.style.pointerEvents = 'none';   // kiosk: no click-to-skip
     // brief beat on the breached login, then the lasers begin
@@ -472,6 +533,8 @@ export function initGridCollapse({ canvas, onComplete }) {
     cuts.length = 0;
     resetTiles();
     gridGroup.visible = true;
+    wall.visible = true;
+    wallMat.opacity = 1.0;
     laserGroup.visible = false;
     phase = 'dormant';
     completed = false;
