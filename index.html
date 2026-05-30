@@ -385,6 +385,18 @@
   /* shockwave sparks (appended to body, so styled globally but prefixed) */
   .b5-spark { position: fixed; z-index: 9500; width: 8px; height: 8px; border-radius: 2px;
     pointer-events: none; will-change: transform, opacity; }
+
+  /* ---- final-window-close finale: white rain + fade-to-white ---- */
+  #b5-rain {
+    position: fixed; inset: 0; z-index: 9600; pointer-events: none;
+    display: none; width: 100%; height: 100%;
+  }
+  #b5-rain.run { display: block; }
+  #b5-whiteout {
+    position: fixed; inset: 0; z-index: 9700; pointer-events: none;
+    background: #ffffff; opacity: 0; transition: opacity 2s ease-in;
+  }
+  #b5-whiteout.run { opacity: 1; }
 </style>
 </head>
 <body>
@@ -525,6 +537,10 @@
 
 <!-- light->dark power sweep overlay (Beat 0 -> Beat 1) -->
 <div id="powersweep"></div>
+
+<!-- finale (on closing the final message): intense white rain, then fade to white -->
+<canvas id="b5-rain"></canvas>
+<div id="b5-whiteout"></div>
 
 <!-- persistent looped soundtrack: started on the Beat 0 wake gesture -->
 <audio id="track" src="Concrete%20Thunder.mp3" loop preload="auto"></audio>

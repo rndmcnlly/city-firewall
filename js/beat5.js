@@ -156,15 +156,92 @@ export function initBeat5({ root, onComplete, onRiser }) {
   }
 
   msgIcon.addEventListener('click', openMessage);
-  winClose.addEventListener('click', () => win.classList.remove('show'));
+  winClose.addEventListener('click', () => {
+    win.classList.remove('show');
+    // Closing the final message (after it has been revealed) is the kid's way
+    // of ending the run: trigger the white-rain finale, which reloads the kiosk
+    // back to the idle screen for the next agent.
+    if (opened && messageEl.classList.contains('show')) {
+      runFinale();
+    }
+  });
+
+  /* ---- finale: intense white rain -> fade to white -> hold -> reload -----
+     A canvas of fast white streaks (cheap even at high density, unlike hundreds
+     of DOM nodes), with a CSS white overlay fading up over the top. After a
+     brief hold on full white, hard-reload so the whole experience restarts
+     clean (audio, Tone, scenes) for the next kid. */
+  const rainCanvas = document.getElementById('b5-rain');
+  const whiteout   = document.getElementById('b5-whiteout');
+  let finaleRunning = false;
+
+  function runFinale() {
+    if (finaleRunning) return;
+    finaleRunning = true;
+
+    const ctx = rainCanvas.getContext('2d');
+    let W = 0, H = 0, dpr = Math.min(window.devicePixelRatio || 1, 2);
+    function sizeCanvas() {
+      W = window.innerWidth; H = window.innerHeight;
+      rainCanvas.width = Math.round(W * dpr);
+      rainCanvas.height = Math.round(H * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    sizeCanvas();
+    window.addEventListener('resize', sizeCanvas);
+
+    // streak particles: vertical white lines falling fast
+    const DROPS = Math.round((W * H) / 1400);   // density scales with screen area
+    const drops = [];
+    for (let i = 0; i < DROPS; i++) {
+      drops.push({
+        x: Math.random() * W,
+        y: Math.random() * H - H,            // stagger start above the top
+        len: 14 + Math.random() * 26,        // streak length
+        vy: 900 + Math.random() * 1100,      // px/sec, intense
+        w: Math.random() < 0.25 ? 2 : 1,     // a few fatter streaks
+        a: 0.5 + Math.random() * 0.5,        // alpha
+      });
+    }
+
+    rainCanvas.classList.add('run');
+    let last = performance.now();
+    function frame(now) {
+      if (!finaleRunning) return;
+      const dt = Math.min((now - last) / 1000, 0.05);
+      last = now;
+      ctx.clearRect(0, 0, W, H);
+      ctx.lineCap = 'round';
+      for (const d of drops) {
+        d.y += d.vy * dt;
+        if (d.y - d.len > H) { d.y = -d.len - Math.random() * 80; d.x = Math.random() * W; }
+        ctx.strokeStyle = `rgba(255,255,255,${d.a})`;
+        ctx.lineWidth = d.w;
+        ctx.beginPath();
+        ctx.moveTo(d.x, d.y);
+        ctx.lineTo(d.x, d.y - d.len);
+        ctx.stroke();
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    // start the white fade shortly after the rain, overlapping it (2s CSS fade),
+    // hold on full white, then reload. ~5s total.
+    setTimeout(() => whiteout.classList.add('run'), 400);   // fade begins
+    setTimeout(() => location.reload(), 5000);              // fade(2s)+hold+reload
+  }
 
   /* ---- reset for kiosk auto-restart -------------------------------------- */
   function reset() {
     opened = false;
+    finaleRunning = false;
     win.classList.remove('show');
     decryptEl.textContent = '';
     messageEl.classList.remove('show');
     msgIcon.classList.add('hot');
+    rainCanvas.classList.remove('run');
+    whiteout.classList.remove('run');
   }
 
   return { reset };
