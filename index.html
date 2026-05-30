@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>City Spies // Secure Terminal</title>
+<title>UMBRA // Secure Terminal</title>
 <style>
   /* =========================================================================
      SYNTHESIS SHELL
@@ -395,7 +395,7 @@
     <div class="b0-stage">
       <div id="b0-plate">
         <div class="b0-mark">&#128737;</div>
-        <div class="b0-org">CITY SPIES NETWORK</div>
+        <div class="b0-org">UMBRA NETWORK</div>
         <div class="b0-title">SECURE TERMINAL</div>
         <div class="b0-state"><span class="b0-dot"></span> STANDBY</div>
         <div id="b0-clock">--:--</div>
@@ -411,7 +411,7 @@
     <div id="b1-wrap">
       <form id="b1-login" autocomplete="off">
         <div class="b1-brand">
-          <div class="logo">// CITY SPIES //</div>
+          <div class="logo">// UMBRA //</div>
           <div class="name">SECURE PORTAL</div>
         </div>
         <div class="b1-field">
@@ -503,12 +503,12 @@
           <div id="b5-message">
             <div class="seal">PRIORITY // EYES ONLY</div>
             <h2>WELL DONE, AGENT.</h2>
-            <p>You broke through the City Spies firewall. The final piece of intel is
+            <p>You broke through Umbra's firewall. The final piece of intel is
                too sensitive to keep on any machine, so we never stored it here.</p>
             <p>It is being held in person by your handler.</p>
             <div class="mother">FIND&nbsp;MOTHER</div>
             <p>Show MOTHER this screen and ask for your <b>paper fragment</b> from the
-               hacking kiosk. Guard it. You will need it to finish the mission.</p>
+               Umbra hack. Guard it. You will need it to finish the mission.</p>
             <div class="fine">// transmission ends &middot; this message will not self-destruct, but you should still hurry</div>
           </div>
         </div>
@@ -528,14 +528,14 @@
 <audio id="track" src="Concrete%20Thunder.mp3" loop preload="auto"></audio>
 
 <!-- lightweight synth for the non-melodic reveal sting (no extra mp3) -->
-<script src="https://cdn.jsdelivr.net/npm/tone@15.0.4/build/Tone.js"></script>
+<!-- vendored (tone@15.0.4) so the kiosk has zero network dependency -->
+<script src="vendor/Tone.js"></script>
 
-<!-- pin Three.js for the grid-collapse beat -->
+<!-- vendored Three.js (three@0.169.0) for the grid-collapse beat -->
 <script type="importmap">
 {
   "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+    "three": "./vendor/three.module.js"
   }
 }
 </script>

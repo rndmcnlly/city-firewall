@@ -60,11 +60,11 @@ export function initGridCollapse({ canvas, onComplete }) {
     roundRect(ctx, cx, cy, cardW, cardH, 12);
     ctx.lineWidth = 2; ctx.strokeStyle = '#1d2735'; ctx.stroke();
 
-    // brand header: "// CITY SPIES //"  +  "SECURE PORTAL"
+    // brand header: "// UMBRA //"  +  "SECURE PORTAL"  (matches Beat 1 login)
     ctx.textAlign = 'center';
     ctx.fillStyle = '#5f7d72';            // --dim
     ctx.font = '600 18px ui-monospace, Menlo, Consolas, monospace';
-    ctx.fillText('// CITY SPIES //', W/2, cy + 56);
+    ctx.fillText('// UMBRA //', W/2, cy + 56);
     ctx.fillStyle = '#d7e6df';            // --fg
     ctx.font = '600 26px ui-monospace, Menlo, Consolas, monospace';
     ctx.fillText('SECURE PORTAL', W/2, cy + 90);

