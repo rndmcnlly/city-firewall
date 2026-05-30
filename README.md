@@ -17,6 +17,11 @@ that feeds into a larger puzzle. Deploys to GitHub Pages.
 We are building this in phases, not one-shot. Each phase develops a few
 options for the kid to react to, then we synthesize.
 
+- **Beat 0 (done): Silent idle / standby screen.** In-universe light-mode
+  "kiosk asleep" state in `beat0-idle/`. The single "TOUCH TO WAKE" tap is the
+  user gesture that starts the looping soundtrack and wakes the terminal into
+  Beat 1. Fires `begin-activity`. See `PROCESS.md` for the soundtrack.
+
 - **Phase 1 (done): Storyboards.** Three sequence concepts as kid-friendly
   comic strips. See `storyboards.html`. **Chosen: A, Classic Heist.**
     - **A: Classic Heist** — straight-faced spy-movie cool, shatter reveal.

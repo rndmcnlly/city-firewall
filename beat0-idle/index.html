@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>City Spies // Secure Terminal (Standby)</title>
+<style>
+  :root {
+    --bg1: #eef3f8;
+    --bg2: #dde7f1;
+    --ink: #2b3a4a;
+    --dim: #8092a5;
+    --line: #c9d6e4;
+    --accent: #3a6ea5;     /* calm civic blue, not heist red yet */
+    --panel: #f7fafd;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    color: var(--ink);
+    font-family: "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 50% 30%, #ffffff 0%, var(--bg1) 45%, var(--bg2) 100%);
+  }
+
+  /* a slow sweeping band of light across the daylight backdrop */
+  #sweep {
+    position: fixed; inset: -40% -40%; z-index: 1; pointer-events: none;
+    background: linear-gradient(115deg,
+      transparent 38%, rgba(255,255,255,0.55) 50%, transparent 62%);
+    animation: sweep 14s ease-in-out infinite;
+  }
+  @keyframes sweep {
+    0%   { transform: translateX(-30%) rotate(0deg); opacity: 0.0; }
+    50%  { opacity: 0.9; }
+    100% { transform: translateX(30%) rotate(0deg); opacity: 0.0; }
+  }
+
+  /* gentle drifting motes, purely ambient */
+  .mote {
+    position: fixed; z-index: 1; pointer-events: none;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(58,110,165,0.5), rgba(58,110,165,0));
+    animation: drift linear infinite;
+  }
+  @keyframes drift {
+    0%   { transform: translateY(0) translateX(0); opacity: 0; }
+    10%  { opacity: 0.8; }
+    90%  { opacity: 0.8; }
+    100% { transform: translateY(-110vh) translateX(var(--dx, 20px)); opacity: 0; }
+  }
+
+  #stage {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 30px;
+  }
+
+  /* the standby plate -- looks like a kiosk asleep */
+  #plate {
+    width: 360px; max-width: 86vw;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 34px 30px 30px;
+    text-align: center;
+    box-shadow: 0 22px 50px rgba(43,58,74,0.12), 0 2px 0 rgba(255,255,255,0.8) inset;
+  }
+
+  /* the breathing logo mark */
+  .mark {
+    width: 78px; height: 78px; margin: 0 auto 18px;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 30px; color: var(--accent);
+    animation: breathe 4s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%,100% { box-shadow: 0 0 0 0 rgba(58,110,165,0.0);  transform: scale(1); }
+    50%     { box-shadow: 0 0 0 12px rgba(58,110,165,0.08); transform: scale(1.03); }
+  }
+
+  .org   { font-size: 11px; letter-spacing: 4px; color: var(--dim); }
+  .title { font-size: 17px; letter-spacing: 1px; margin-top: 6px; color: var(--ink); }
+  .state {
+    margin-top: 16px; font-size: 11px; letter-spacing: 2px; color: var(--dim);
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%; background: #57b894;
+    animation: softblink 2.4s ease-in-out infinite;
+  }
+  @keyframes softblink { 50% { opacity: 0.3; } }
+
+  #clock { margin-top: 22px; font-size: 26px; letter-spacing: 2px; color: var(--ink); }
+  #date  { font-size: 11px; letter-spacing: 2px; color: var(--dim); margin-top: 2px; }
+
+  /* the wake affordance: soft, inviting, gently pulsing */
+  #wake {
+    appearance: none; cursor: pointer;
+    font-family: inherit; font-size: 13px; letter-spacing: 2px;
+    color: #fff; background: var(--accent);
+    border: none; border-radius: 999px;
+    padding: 14px 30px;
+    box-shadow: 0 8px 22px rgba(58,110,165,0.35);
+    animation: invite 2.6s ease-in-out infinite;
+    transition: transform 0.12s, box-shadow 0.2s;
+  }
+  #wake:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(58,110,165,0.45); }
+  #wake:active { transform: translateY(0); }
+  @keyframes invite {
+    0%,100% { box-shadow: 0 8px 22px rgba(58,110,165,0.35); }
+    50%     { box-shadow: 0 8px 30px rgba(58,110,165,0.6); }
+  }
+
+  .hint { font-size: 10px; letter-spacing: 1px; color: var(--dim); }
+
+  /* fade-out when waking */
+  #stage.waking, #sweep.waking { transition: opacity 0.6s; opacity: 0; }
+</style>
+</head>
+<body>
+
+<div id="sweep"></div>
+
+<div id="stage">
+  <div id="plate">
+    <div class="mark">&#128737;</div>
+    <div class="org">CITY SPIES NETWORK</div>
+    <div class="title">SECURE TERMINAL</div>
+    <div class="state"><span class="dot"></span> STANDBY</div>
+    <div id="clock">--:--</div>
+    <div id="date"></div>
+  </div>
+  <button id="wake">TOUCH TO WAKE</button>
+  <div class="hint">authorized personnel only</div>
+</div>
+
+<audio id="track" src="../Concrete%20Thunder.mp3" loop preload="auto"></audio>
+
+<script>
+/* ============================================================================
+   BEAT 0  --  silent in-universe idle / standby screen
+     A calm, light-mode "kiosk asleep" state for the CITY SPIES terminal.
+     Looks benign until kids are ready. The single "TOUCH TO WAKE" tap is the
+     required user gesture that (a) starts the looping soundtrack and (b) wakes
+     the terminal into Beat 1 (the login). Nothing here hints at the hack yet.
+
+     Soundtrack: "Concrete Thunder.mp3" -- a Suno instrumental generated with
+     the prompt "action movie, pulsing soundtrack, intense" (see PROCESS.md).
+   ========================================================================== */
+
+const stage = document.getElementById('stage');
+const sweep = document.getElementById('sweep');
+const wake  = document.getElementById('wake');
+const track = document.getElementById('track');
+
+/* ---- live standby clock (sells the "real idle terminal" illusion) -------- */
+function tick() {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('clock').textContent = hh + ':' + mm;
+  document.getElementById('date').textContent =
+    now.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' }).toUpperCase();
+}
+tick();
+setInterval(tick, 1000 * 20);
+
+/* ---- ambient drifting motes ---------------------------------------------- */
+function spawnMotes(n) {
+  for (let i = 0; i < n; i++) {
+    const m = document.createElement('span');
+    m.className = 'mote';
+    m.style.left = Math.random() * 100 + 'vw';
+    m.style.bottom = '-10px';
+    m.style.animationDuration = (14 + Math.random() * 12) + 's';
+    m.style.animationDelay = (-Math.random() * 20) + 's';
+    m.style.setProperty('--dx', (Math.random() * 80 - 40) + 'px');
+    document.body.appendChild(m);
+  }
+}
+spawnMotes(14);
+
+/* ---- the wake gesture: unlock audio, then hand off to Beat 1 ------------- */
+let woke = false;
+function doWake() {
+  if (woke) return;
+  woke = true;
+
+  // user gesture: start the persistent looped soundtrack
+  track.volume = 0.0;
+  track.play().then(() => {
+    // gentle fade-in so the music doesn't pounce
+    let v = 0;
+    const fade = setInterval(() => {
+      v = Math.min(0.7, v + 0.05);
+      track.volume = v;
+      if (v >= 0.7) clearInterval(fade);
+    }, 90);
+  }).catch(() => { /* if blocked, the next gesture in Beat 1 can retry */ });
+
+  // calm fade out of the standby screen
+  stage.classList.add('waking');
+  sweep.classList.add('waking');
+
+  setTimeout(() => {
+    // In the full sequence this hands control to Beat 1 (the login).
+    document.dispatchEvent(new CustomEvent('begin-activity'));
+    // standalone preview marker:
+    stage.style.display = 'none';
+  }, 650);
+}
+
+wake.addEventListener('click', doWake);
+</script>
+</body>
+</html>
