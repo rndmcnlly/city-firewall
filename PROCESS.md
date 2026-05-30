@@ -15,3 +15,23 @@ reproducible and reviewable.
   browser audio autoplay) and continues looping through Beats 1–5.
 - **Playback:** fades in gently from silent to ~0.7 volume on wake, so the music
   does not pounce on the kid.
+
+### Beat 5 reveal sting — Tone.js (no extra mp3)
+
+- We had no time for additional Suno work, so the celebratory "you did it" sting
+  at the message.txt reveal is synthesized live with **Tone.js** (CDN).
+- Layers: a bright triangle-wave arpeggio (C5→E6) climbing, a warm sawtooth pad
+  chord swell (Cmaj) underneath, and two MetalSynth sparkle blips.
+- Tone's audio context is started lazily on the message.txt click (a user
+  gesture), so it never fights the autoplay policy.
+
+## Puzzle mechanic
+
+### The clue is physical (late redesign)
+
+- Originally a 4-letter code shown on screen (`clue.txt` → `WXYZ` placeholder).
+- **Changed to:** `message.txt` carries no code at all. It congratulates the
+  agent and directs them to **MOTHER** (a parent playing the in-universe
+  handler) to receive a **physical paper fragment** from the hacking kiosk.
+- Benefit: the real clue lives only on paper, so it cannot be spoiled by anyone
+  browsing this repo or inspecting the page source.

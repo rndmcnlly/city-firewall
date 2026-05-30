@@ -6,11 +6,13 @@ that feeds into a larger puzzle. Deploys to GitHub Pages.
 
 ## Story beats (shared by all concepts)
 
+0. A silent, benign idle/standby screen; one tap to begin (unlocks audio).
 1. A modest, boring login page.
 2. A (not-so) secret terminal-access button.
 3. A hackertyper-style typing frenzy (any keys -> cool code).
 4. A cinematic 3D reveal: the screen chunks fall away.
-5. A secure desktop with an obvious `clue.txt` holding the final code.
+5. A secure desktop with `message.txt` that sends the kid to MOTHER (a parent)
+   for a physical paper fragment. The real clue is never stored digitally.
 
 ## Phases
 
@@ -49,6 +51,19 @@ options for the kid to react to, then we synthesize.
       escalating bursts on each failed login (more/faster/brighter/farther,
       red -> green), going permanently "hot" after 3 fails. Fires
       `login-bypassed` to hand off to beat 3.
+- **Beat 5 (done): Secure workstation payoff.** `beat5-desktop/`. Heist-look
+  desktop with a boot-in, ambient spy details (live clock, system-status panel),
+  and a pulsing `message.txt`. Opening it runs a decrypt animation then reveals
+  a message sending the kid to MOTHER for a physical paper fragment. Adds a
+  Tone.js celebratory sting + confetti at the reveal (no new mp3). Fires
+  `mission-complete`.
+
+## Story handoff chain (for synthesis)
+
+`begin-activity` (Beat 0) -> `login-bypassed` (Beat 2) ->
+`typing-frenzy-complete` (Beat 3) -> grid collapse (Beat 4) ->
+`mission-complete` (Beat 5). The looped soundtrack starts at Beat 0 and runs
+throughout.
 
 ## Viewing
 
