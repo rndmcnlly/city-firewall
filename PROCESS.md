@@ -18,10 +18,17 @@ reproducible and reviewable.
 
 ### Beat 5 reveal sting — Tone.js (no extra mp3)
 
-- We had no time for additional Suno work, so the celebratory "you did it" sting
-  at the message.txt reveal is synthesized live with **Tone.js** (CDN).
-- Layers: a bright triangle-wave arpeggio (C5→E6) climbing, a warm sawtooth pad
-  chord swell (Cmaj) underneath, and two MetalSynth sparkle blips.
+- We had no time for additional Suno work, so the cue at the message.txt reveal
+  is synthesized live with **Tone.js** (CDN).
+- **Deliberately non-melodic** (an earlier arpeggio+chord version read as cheesy
+  cartoon victory). It is a cinematic impact instead:
+  - a filtered **white-noise riser** (bandpass 300Hz→7kHz, volume crescendo)
+    builds tension for ~1.1s, then cuts sharply,
+  - slamming into a **sub-bass impact** (sine pitch-dropping 140Hz→38Hz, fast
+    attack / long decay) plus a short noise "slam" transient for punch.
+- No pitches, no harmony: just texture and weight.
+- The reveal is timed so the message snaps in exactly on the bass hit; the
+  on-screen burst is a red/white concussive shockwave, not party confetti.
 - Tone's audio context is started lazily on the message.txt click (a user
   gesture), so it never fights the autoplay policy.
 
