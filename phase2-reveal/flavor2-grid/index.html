@@ -469,7 +469,7 @@
       //      from the top-left corner (0,0) toward bottom-right. Normalized
       //      so the last tile starts near the end of the stagger window.
       const diag = (c + r) / (COLS + ROWS - 2);   // 0..1 across the diagonal
-      const STAGGER_WINDOW = 0.9;                  // seconds spread of the wave
+      const STAGGER_WINDOW = 0.45;                 // seconds spread of the wave
       const delay = diag * STAGGER_WINDOW;
 
       tiles.push({
@@ -491,11 +491,11 @@
   // =========================================================================
   let phase = 'idle';
   let phaseStart = 0;           // performance.now() ms at phase entry
-  const AUTO_TRIGGER_MS = 1200; // ~1.2s before the lasers start
-  const SLICE_MS = 230;         // time for the laser to traverse one line
-  const SLICE_GAP_MS = 70;      // brief pause between cuts
-  const GRAVITY = 9.5;          // world units / s^2
-  const FALL_DURATION = 1.6;    // seconds per tile from break to faded out
+  const AUTO_TRIGGER_MS = 600;  // ~0.6s before the lasers start
+  const SLICE_MS = 115;         // time for the laser to traverse one line
+  const SLICE_GAP_MS = 35;      // brief pause between cuts
+  const GRAVITY = 19;           // world units / s^2
+  const FALL_DURATION = 0.8;    // seconds per tile from break to faded out
 
   // ---- Build the ordered list of cuts the lasers will perform. We alternate
   //      vertical and horizontal so the beam visibly jumps orientation, and
@@ -677,7 +677,7 @@
         t.edgeMat.opacity = (1 - lifeFrac) * 0.9;
 
         // Domino flip: rotate the pivot backward about X (top edge tips away).
-        const flip = Math.min(t.tElapsed * 3.2, Math.PI * 0.85);
+        const flip = Math.min(t.tElapsed * 6.4, Math.PI * 0.85);
         t.pivot.rotation.x = -flip;
         // subtle secondary tumble for organic-but-orderly motion
         t.mesh.rotation.z = t.spin * lifeFrac;
