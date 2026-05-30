@@ -236,6 +236,8 @@
     position: absolute; inset: 0; padding: 28px 34px 150px; overflow-y: auto;
     white-space: pre-wrap; word-break: break-word; font-size: 15px; line-height: 1.5;
     text-shadow: 0 0 6px rgba(138,255,193,0.12); z-index: 2;
+    touch-action: manipulation;   /* mobile: no double-tap zoom delay on frantic taps */
+    -webkit-user-select: none; user-select: none;
   }
   #scene-typing #b3-term::-webkit-scrollbar { width: 0; height: 0; }
   #scene-typing .prompt { color: var(--prompt); }
@@ -442,7 +444,7 @@
     <div id="b3-vignette"></div>
     <div id="b3-hud">
       <span id="b3-stage">STANDBY</span>
-      <span id="b3-hint">[ MASH ANY KEYS ]</span>
+      <span id="b3-hint">[ MASH KEYS or TAP ]</span>
       <div id="b3-progressWrap"><div id="b3-progress"></div></div>
       <label class="dim" style="font-size:15px;">speed
         <select id="b3-speed">

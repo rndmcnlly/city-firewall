@@ -217,7 +217,7 @@ export function initTyping({ root }) {
         state.typed = 0;
         state.inputSpan = appendSpan('', 'hacker');
         cursorEl.classList.remove('idle-output');
-        hintEl.innerHTML = '[ MASH ANY KEYS ]';
+        hintEl.innerHTML = '[ MASH KEYS or TAP ]';
         scrollToCursor();
         return;
       }
@@ -257,13 +257,34 @@ export function initTyping({ root }) {
     }
     if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') return;
     e.preventDefault();
+    mashKeys();
+  }
+
+  // Advance the current input by one "key" worth of characters; flip to
+  // await-enter when the command is fully typed. Shared by the keyboard
+  // (onKey) and the mobile tap handler (onTap).
+  function mashKeys() {
     const seg = SCRIPT[state.idx];
     state.typed = Math.min(seg.text.length, state.typed + charsPerKey());
     state.inputSpan.textContent = seg.text.slice(0, state.typed);
     scrollToCursor();
     if (state.typed >= seg.text.length) {
       state.mode = 'await-enter';
-      hintEl.innerHTML = 'command ready &mdash; press <span class="enter-key">ENTER</span>';
+      hintEl.innerHTML = 'command ready &mdash; tap or press <span class="enter-key">ENTER</span>';
+    }
+  }
+
+  // Mobile: a frantic tap anywhere on the terminal panel does what mashing the
+  // keyboard does. While typing a command, each tap types more; once the
+  // command is ready, a tap submits it (mirrors the Enter key).
+  function onTap(e) {
+    if (!active || !state) return;
+    if (state.mode === 'await-keys') {
+      e.preventDefault();
+      mashKeys();
+    } else if (state.mode === 'await-enter') {
+      e.preventDefault();
+      submitInput();
     }
   }
 
@@ -311,6 +332,9 @@ export function initTyping({ root }) {
   // replay button: restart this beat in place
   replayBtn.addEventListener('click', () => { start(); });
   window.addEventListener('keydown', onKey);
+  // mobile: frantic taps on the code panel advance the same as key mashing.
+  // pointerdown is the unified touch/pen/mouse event, and every tap fires.
+  termEl.addEventListener('pointerdown', onTap);
 
   rebuild();
   return { start, reset };
