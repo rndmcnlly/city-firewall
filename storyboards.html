@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FIREWALL: Pick Your Hack Style</title>
+<style>
+  :root {
+    --bg: #0a0e14;
+    --panel: #121822;
+    --ink: #e6edf3;
+    --dim: #8b98a5;
+    --a: #ff4d4d;   /* Option A accent: heist red */
+    --b: #ffd23f;   /* Option B accent: gremlin yellow */
+    --c: #3fa9ff;   /* Option C accent: mission blue */
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: radial-gradient(circle at 50% -10%, #1a2433, var(--bg) 60%);
+    color: var(--ink);
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.4;
+    padding: 0 0 4rem;
+  }
+  header {
+    text-align: center;
+    padding: 2.5rem 1rem 1rem;
+  }
+  header h1 {
+    font-size: clamp(1.8rem, 6vw, 3rem);
+    margin: 0;
+    letter-spacing: 0.06em;
+    text-shadow: 0 0 18px rgba(63,169,255,0.4);
+  }
+  header p {
+    color: var(--dim);
+    max-width: 40rem;
+    margin: 0.6rem auto 0;
+    font-size: 1.05rem;
+  }
+  .beats {
+    text-align: center;
+    color: var(--dim);
+    font-size: 0.95rem;
+    margin: 0.8rem auto 0;
+  }
+  .beats b { color: var(--ink); }
+
+  .options {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+    max-width: 1100px;
+    margin: 2.5rem auto 0;
+    padding: 0 1rem;
+  }
+  .option {
+    background: var(--panel);
+    border-radius: 18px;
+    padding: 1.4rem 1.4rem 1.8rem;
+    border: 2px solid transparent;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+  }
+  .option.a { border-color: var(--a); }
+  .option.b { border-color: var(--b); }
+  .option.c { border-color: var(--c); }
+
+  .opt-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.7rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.3rem;
+  }
+  .opt-tag {
+    font-weight: bold;
+    font-size: 1.5rem;
+    padding: 0.1rem 0.7rem;
+    border-radius: 10px;
+    color: #0a0e14;
+  }
+  .a .opt-tag { background: var(--a); }
+  .b .opt-tag { background: var(--b); }
+  .c .opt-tag { background: var(--c); }
+  .opt-name { font-size: 1.6rem; font-weight: bold; }
+  .opt-vibe { color: var(--dim); width: 100%; font-size: 1rem; margin-top: 0.2rem; }
+
+  .strip {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.7rem;
+    margin-top: 1.1rem;
+  }
+  @media (max-width: 760px) {
+    .strip { grid-template-columns: repeat(2, 1fr); }
+  }
+  .frame {
+    background: #0c1119;
+    border-radius: 12px;
+    padding: 0.8rem 0.7rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 165px;
+    border: 1px solid #1d2735;
+  }
+  .frame .num {
+    font-size: 0.75rem;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+  }
+  .frame .pic {
+    font-size: 2.6rem;
+    text-align: center;
+    margin: 0.35rem 0 0.45rem;
+    line-height: 1;
+  }
+  .frame .cap {
+    font-size: 0.88rem;
+    color: var(--ink);
+  }
+  .frame .cap b { display: block; margin-bottom: 0.15rem; }
+
+  .vote {
+    text-align: center;
+    margin-top: 3rem;
+    color: var(--dim);
+  }
+  .vote .big { color: var(--ink); font-size: 1.2rem; }
+  .thumbs { font-size: 2rem; letter-spacing: 0.6rem; margin-top: 0.5rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔒 FIREWALL: PICK YOUR HACK STYLE 🔒</h1>
+  <p>Three ways to break in. Each one tells the same story but with a totally different flavor. Read the comic strips, then pick your favorite!</p>
+  <div class="beats">
+    The story always goes: <b>1.</b> Boring login &rarr; <b>2.</b> Secret terminal button &rarr;
+    <b>3.</b> Crazy typing &rarr; <b>4.</b> Screen breaks apart &rarr; <b>5.</b> Open clue.txt
+  </div>
+</header>
+
+<div class="options">
+
+  <!-- OPTION A -->
+  <section class="option a">
+    <div class="opt-head">
+      <span class="opt-tag">A</span>
+      <span class="opt-name">Classic Heist</span>
+      <span class="opt-vibe">Serious spy-movie cool. Dark and red. Plays it totally straight, like a real action film.</span>
+    </div>
+    <div class="strip">
+      <div class="frame"><div class="num">FRAME 1</div><div class="pic">🔐</div><div class="cap"><b>Login</b>Plain black login box. You type a guess. Big red "ACCESS DENIED" stamp.</div></div>
+      <div class="frame"><div class="num">FRAME 2</div><div class="pic">🟥</div><div class="cap"><b>Secret button</b>A tiny blinking "&gt;_ terminal" link in the corner. You spot it and click.</div></div>
+      <div class="frame"><div class="num">FRAME 3</div><div class="pic">🟢</div><div class="cap"><b>Type storm</b>Green Matrix code pours out no matter what keys you smash.</div></div>
+      <div class="frame"><div class="num">FRAME 4</div><div class="pic">💥</div><div class="cap"><b>Reveal</b>The whole screen SHATTERS like broken glass and falls away.</div></div>
+      <div class="frame"><div class="num">FRAME 5</div><div class="pic">📄</div><div class="cap"><b>Clue</b>A clean spy-agency desktop. One file: clue.txt. Open it for the code.</div></div>
+    </div>
+  </section>
+
+  <!-- OPTION B -->
+  <section class="option b">
+    <div class="opt-head">
+      <span class="opt-tag">B</span>
+      <span class="opt-name">Glitch Gremlin</span>
+      <span class="opt-vibe">Silly and chaotic. The computer talks back and jokes around. Maximum giggles.</span>
+    </div>
+    <div class="strip">
+      <div class="frame"><div class="num">FRAME 1</div><div class="pic">😜</div><div class="cap"><b>Login</b>Login box that sasses you: "Nice try!" "Nope!" "Was that your password? LOL."</div></div>
+      <div class="frame"><div class="num">FRAME 2</div><div class="pic">🐛</div><div class="cap"><b>Secret button</b>A glitchy wobbling button appears: "DO NOT PRESS." You press it.</div></div>
+      <div class="frame"><div class="num">FRAME 3</div><div class="pic">🤪</div><div class="cap"><b>Type storm</b>Code + emojis fly out. Banners pop: "HACKING INTENSIFIES!!!"</div></div>
+      <div class="frame"><div class="num">FRAME 4</div><div class="pic">🫠</div><div class="cap"><b>Reveal</b>The screen MELTS and dissolves into pixels that drip away.</div></div>
+      <div class="frame"><div class="num">FRAME 5</div><div class="pic">📄</div><div class="cap"><b>Clue</b>A messy fun desktop with goofy icons. clue.txt glows. Open it!</div></div>
+    </div>
+  </section>
+
+  <!-- OPTION C -->
+  <section class="option c">
+    <div class="opt-head">
+      <span class="opt-tag">C</span>
+      <span class="opt-name">Mission Control</span>
+      <span class="opt-vibe">Slick high-tech spy HQ. Fingerprints, maps, glowing panels. The fanciest one.</span>
+    </div>
+    <div class="strip">
+      <div class="frame"><div class="num">FRAME 1</div><div class="pic">🫆</div><div class="cap"><b>Login</b>Fancy fingerprint / eye-scan login that beeps and fails dramatically.</div></div>
+      <div class="frame"><div class="num">FRAME 2</div><div class="pic">🛰️</div><div class="cap"><b>Secret button</b>A hidden "OVERRIDE" panel slides open when you find the right spot.</div></div>
+      <div class="frame"><div class="num">FRAME 3</div><div class="pic">🗺️</div><div class="cap"><b>Type storm</b>Many panels fill at once: code, progress bars, a spinning world map.</div></div>
+      <div class="frame"><div class="num">FRAME 4</div><div class="pic">📦</div><div class="cap"><b>Reveal</b>The panels FOLD AWAY in 3D like origami unfolding into space.</div></div>
+      <div class="frame"><div class="num">FRAME 5</div><div class="pic">📄</div><div class="cap"><b>Clue</b>A glowing hologram desktop. clue.txt floats front and center. Open it!</div></div>
+    </div>
+  </section>
+
+</div>
+
+<div class="vote">
+  <div class="big">Which one looks the coolest to you?</div>
+  <div>Tell us: A, B, or C? (Or mix and match parts you like!)</div>
+  <div class="thumbs">🅰️ &nbsp; 🅱️ &nbsp; 🅲</div>
+</div>
+
+</body>
+</html>
