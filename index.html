@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>City Spies // Secure Terminal</title>
+<style>
+  /* =========================================================================
+     SYNTHESIS SHELL
+     -------------------------------------------------------------------------
+     Six beats live as stacked full-screen .scene layers. Only .active is shown.
+     Each beat's styles are scoped under its scene id (and prefixed classes) so
+     the prototypes' overlapping :root vars / #desktop / #clock / .topbar etc.
+     never collide. The orchestrator (js/orchestrator.js) cross-fades scenes
+     along the handoff event chain.
+     ========================================================================= */
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; width: 100%; height: 100%;
+    background: #05070a; overflow: hidden;
+    font-family: "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
+    -webkit-user-select: none; user-select: none;
+  }
+  #stage { position: fixed; inset: 0; }
+
+  .scene {
+    position: fixed; inset: 0;
+    opacity: 0; visibility: hidden;
+    transition: opacity 0.6s ease;
+  }
+  .scene.active { opacity: 1; visibility: visible; }
+
+  /* The reveal scene (Beat 4 canvas + Beat 5 desktop) must paint while it
+     fades in; keep it visible during transition via a longer ramp. */
+  #scene-reveal { transition: opacity 0.5s ease; }
+
+  /* =========================================================================
+     LIGHT -> DARK POWER SWEEP (Beat 0 -> Beat 1 transition)
+     A diagonal dark wipe sweeps across, "powering up" the heist-red world.
+     ========================================================================= */
+  #powersweep {
+    position: fixed; inset: 0; z-index: 9000; pointer-events: none;
+    opacity: 0;
+    background: linear-gradient(115deg,
+      #05070a 0%, #05070a 45%, #ff3b4e22 50%, #05070a 55%, #05070a 100%);
+    background-size: 300% 100%;
+    background-position: 120% 0;
+  }
+  #powersweep.run {
+    animation: powerwipe 1.25s cubic-bezier(.5,0,.2,1) forwards;
+  }
+  @keyframes powerwipe {
+    0%   { opacity: 0;   background-position: 120% 0; }
+    18%  { opacity: 1; }
+    50%  { opacity: 1;   background-position: -20% 0; }
+    100% { opacity: 0;   background-position: -120% 0; }
+  }
+
+  /* =========================================================================
+     BEAT 0 -- idle / standby (light, civic blue)
+     ========================================================================= */
+  #scene-idle {
+    --bg1: #eef3f8; --bg2: #dde7f1; --ink: #2b3a4a; --dim: #8092a5;
+    --line: #c9d6e4; --accent: #3a6ea5; --panel: #f7fafd;
+    color: var(--ink);
+    background: radial-gradient(circle at 50% 30%, #ffffff 0%, var(--bg1) 45%, var(--bg2) 100%);
+  }
+  #scene-idle #b0-sweep {
+    position: absolute; inset: -40% -40%; z-index: 1; pointer-events: none;
+    background: linear-gradient(115deg, transparent 38%, rgba(255,255,255,0.55) 50%, transparent 62%);
+    animation: b0sweep 14s ease-in-out infinite;
+  }
+  @keyframes b0sweep {
+    0% { transform: translateX(-30%); opacity: 0; }
+    50% { opacity: 0.9; }
+    100% { transform: translateX(30%); opacity: 0; }
+  }
+  #scene-idle .b0-mote {
+    position: absolute; z-index: 1; pointer-events: none;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(58,110,165,0.5), rgba(58,110,165,0));
+    animation: b0drift linear infinite;
+  }
+  @keyframes b0drift {
+    0% { transform: translateY(0) translateX(0); opacity: 0; }
+    10%, 90% { opacity: 0.8; }
+    100% { transform: translateY(-110vh) translateX(var(--dx, 20px)); opacity: 0; }
+  }
+  #scene-idle .b0-stage {
+    position: absolute; inset: 0; z-index: 10;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 30px;
+  }
+  #scene-idle #b0-plate {
+    width: 360px; max-width: 86vw; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 16px; padding: 34px 30px 30px;
+    text-align: center; box-shadow: 0 22px 50px rgba(43,58,74,0.12), 0 2px 0 rgba(255,255,255,0.8) inset;
+  }
+  #scene-idle .b0-mark {
+    width: 78px; height: 78px; margin: 0 auto 18px; border-radius: 50%;
+    border: 2px solid var(--accent); display: flex; align-items: center; justify-content: center;
+    font-size: 30px; color: var(--accent); animation: b0breathe 4s ease-in-out infinite;
+  }
+  @keyframes b0breathe {
+    0%,100% { box-shadow: 0 0 0 0 rgba(58,110,165,0); transform: scale(1); }
+    50% { box-shadow: 0 0 0 12px rgba(58,110,165,0.08); transform: scale(1.03); }
+  }
+  #scene-idle .b0-org { font-size: 11px; letter-spacing: 4px; color: var(--dim); }
+  #scene-idle .b0-title { font-size: 17px; letter-spacing: 1px; margin-top: 6px; color: var(--ink); }
+  #scene-idle .b0-state {
+    margin-top: 16px; font-size: 11px; letter-spacing: 2px; color: var(--dim);
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  #scene-idle .b0-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: #57b894;
+    animation: b0softblink 2.4s ease-in-out infinite;
+  }
+  @keyframes b0softblink { 50% { opacity: 0.3; } }
+  #scene-idle #b0-clock { margin-top: 22px; font-size: 26px; letter-spacing: 2px; color: var(--ink); }
+  #scene-idle #b0-date { font-size: 11px; letter-spacing: 2px; color: var(--dim); margin-top: 2px; }
+  #scene-idle #b0-wake {
+    appearance: none; cursor: pointer; font-family: inherit; font-size: 13px; letter-spacing: 2px;
+    color: #fff; background: var(--accent); border: none; border-radius: 999px; padding: 14px 30px;
+    box-shadow: 0 8px 22px rgba(58,110,165,0.35); animation: b0invite 2.6s ease-in-out infinite;
+    transition: transform 0.12s, box-shadow 0.2s;
+  }
+  #scene-idle #b0-wake:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(58,110,165,0.45); }
+  #scene-idle #b0-wake:active { transform: translateY(0); }
+  @keyframes b0invite {
+    0%,100% { box-shadow: 0 8px 22px rgba(58,110,165,0.35); }
+    50% { box-shadow: 0 8px 30px rgba(58,110,165,0.6); }
+  }
+  #scene-idle .b0-hint { font-size: 10px; letter-spacing: 1px; color: var(--dim); }
+
+  /* =========================================================================
+     BEATS 1+2 -- login + terminal door (dark, heist red)
+     ========================================================================= */
+  #scene-login {
+    --bg: #05070a; --panel: #0c1119; --fg: #d7e6df; --dim: #5f7d72;
+    --line: #1d2735; --accent: #ff3b4e; --term: #8affc1;
+    background: radial-gradient(circle at 50% 38%, #0e1622, var(--bg) 70%);
+    color: var(--fg);
+  }
+  #scene-login #b1-scanlines {
+    position: absolute; inset: 0; pointer-events: none; z-index: 50;
+    background: repeating-linear-gradient(to bottom,
+      rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,0.18) 3px, rgba(0,0,0,0) 4px);
+    mix-blend-mode: multiply;
+  }
+  #scene-login #b1-vignette {
+    position: absolute; inset: 0; pointer-events: none; z-index: 40;
+    box-shadow: inset 0 0 220px 40px rgba(0,0,0,0.85);
+  }
+  #scene-login #b1-wrap {
+    position: absolute; inset: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #scene-login #b1-login {
+    width: 340px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 28px 26px 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+  #scene-login #b1-login.shake { animation: b1shake 0.4s; }
+  @keyframes b1shake {
+    10%,90% { transform: translateX(-2px); }
+    20%,80% { transform: translateX(4px); }
+    30%,50%,70% { transform: translateX(-8px); }
+    40%,60% { transform: translateX(8px); }
+  }
+  #scene-login .b1-brand { text-align: center; margin-bottom: 22px; }
+  #scene-login .b1-brand .logo { font-size: 13px; letter-spacing: 3px; color: var(--dim); }
+  #scene-login .b1-brand .name { font-size: 18px; letter-spacing: 1px; margin-top: 4px; color: var(--fg); }
+  #scene-login .b1-field { margin-bottom: 14px; }
+  #scene-login .b1-field label { display: block; font-size: 10px; letter-spacing: 2px; color: var(--dim); margin-bottom: 5px; }
+  #scene-login .b1-field input {
+    width: 100%; background: #060a0f; color: var(--fg); border: 1px solid #2a3a4d;
+    border-radius: 5px; font-family: inherit; font-size: 14px; padding: 9px 10px;
+  }
+  #scene-login .b1-field input:focus { outline: none; border-color: #3a5167; }
+  #scene-login #b1-submit {
+    width: 100%; margin-top: 6px; background: #1a2632; color: #cdd9e5;
+    border: 1px solid #2a3a4d; border-radius: 5px; font-family: inherit; font-size: 13px;
+    letter-spacing: 2px; padding: 11px; cursor: pointer; transition: background 0.15s;
+  }
+  #scene-login #b1-submit:hover { background: #233246; }
+  #scene-login #b1-denied {
+    margin-top: 16px; min-height: 18px; text-align: center; color: var(--accent);
+    font-size: 13px; font-weight: bold; letter-spacing: 1px; opacity: 0; transition: opacity 0.1s;
+  }
+  #scene-login #b1-denied.show { opacity: 1; }
+  #scene-login #b1-tries { margin-top: 8px; text-align: center; font-size: 10px; color: var(--dim); letter-spacing: 1px; }
+  #scene-login #b1-termdoor { position: absolute; bottom: 14px; right: 16px; z-index: 30; }
+  #scene-login #b1-termlink {
+    position: relative; z-index: 2; display: inline-block; font-size: 12px; letter-spacing: 1px;
+    color: var(--term); opacity: 0.45; text-decoration: none; cursor: pointer; padding: 4px 6px;
+    border-radius: 4px; transition: opacity 0.2s, text-shadow 0.2s, transform 0.1s;
+    animation: b1linkblink 1.3s steps(1) infinite;
+  }
+  #scene-login #b1-termlink:hover { opacity: 1; text-shadow: 0 0 12px var(--term); transform: scale(1.08); }
+  @keyframes b1linkblink { 50% { opacity: 0.18; } }
+  #scene-login #b1-termdoor.hot #b1-termlink { opacity: 0.9; text-shadow: 0 0 10px var(--term); animation-duration: 0.7s; }
+  #scene-login .b1-pulse {
+    position: absolute; left: 50%; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px;
+    border-radius: 50%; border: 2px solid var(--term); pointer-events: none; z-index: 1;
+    animation: b1ring var(--dur, 1.6s) ease-out forwards; opacity: 0;
+  }
+  @keyframes b1ring {
+    0% { transform: scale(1); opacity: var(--peak, 0.55); }
+    100% { transform: scale(var(--max, 14)); opacity: 0; }
+  }
+  #scene-login #b1-handoff {
+    position: absolute; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center;
+    background: var(--bg); color: var(--term); font-size: 18px; letter-spacing: 3px; text-shadow: 0 0 16px var(--term);
+  }
+  #scene-login #b1-handoff.show { display: flex; animation: b1hojoin 0.3s; }
+  @keyframes b1hojoin { from { opacity: 0; } to { opacity: 1; } }
+
+  /* =========================================================================
+     BEAT 3 -- typing frenzy
+     ========================================================================= */
+  #scene-typing {
+    --bg: #05070a; --fg: #d7e6df; --dim: #5f7d72; --hacker: #8affc1;
+    --prompt: #4fd1ff; --ok: #6dff9e; --err: #ff5b6e; --warn: #ffd166;
+    --sys: #7fa99b; --accent: #ff3b4e;
+    background: var(--bg); color: var(--fg);
+  }
+  #scene-typing #b3-scanlines {
+    position: absolute; inset: 0; pointer-events: none; z-index: 5;
+    background: repeating-linear-gradient(to bottom,
+      rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,0.18) 3px, rgba(0,0,0,0) 4px);
+    mix-blend-mode: multiply;
+  }
+  #scene-typing #b3-vignette {
+    position: absolute; inset: 0; pointer-events: none; z-index: 4;
+    box-shadow: inset 0 0 220px 40px rgba(0,0,0,0.85);
+  }
+  #scene-typing #b3-term {
+    position: absolute; inset: 0; padding: 28px 34px 150px; overflow-y: auto;
+    white-space: pre-wrap; word-break: break-word; font-size: 15px; line-height: 1.5;
+    text-shadow: 0 0 6px rgba(138,255,193,0.12); z-index: 2;
+  }
+  #scene-typing #b3-term::-webkit-scrollbar { width: 0; height: 0; }
+  #scene-typing .prompt { color: var(--prompt); }
+  #scene-typing .hacker { color: var(--hacker); }
+  #scene-typing .sys { color: var(--sys); }
+  #scene-typing .ok { color: var(--ok); font-weight: 600; }
+  #scene-typing .err { color: var(--err); font-weight: 600; }
+  #scene-typing .warn { color: var(--warn); }
+  #scene-typing .banner { color: var(--accent); font-weight: 700; text-shadow: 0 0 10px rgba(255,59,78,0.5); }
+  #scene-typing .dim { color: var(--dim); }
+  #scene-typing #b3-cursor {
+    display: inline-block; width: 9px; height: 1.05em; background: var(--hacker);
+    vertical-align: text-bottom; box-shadow: 0 0 8px var(--hacker); animation: b3blink 1s steps(1) infinite;
+  }
+  #scene-typing #b3-cursor.idle-output { background: var(--dim); box-shadow: none; opacity: 0.4; }
+  @keyframes b3blink { 50% { opacity: 0; } }
+  #scene-typing #b3-hud {
+    position: absolute; bottom: 0; left: 0; right: 0; z-index: 6;
+    display: flex; align-items: center; gap: 26px; padding: 22px 32px;
+    background: linear-gradient(to top, rgba(5,7,10,0.99) 55%, rgba(5,7,10,0.85) 85%, rgba(5,7,10,0));
+    border-top: 3px solid var(--accent);
+    box-shadow: 0 -18px 50px 0 rgba(255,59,78,0.28), inset 0 1px 0 rgba(255,59,78,0.4);
+    font-size: 20px; color: var(--fg);
+  }
+  #scene-typing #b3-hint {
+    flex: 1; color: var(--warn); font-size: 30px; font-weight: 800; letter-spacing: 2px;
+    text-transform: uppercase; text-align: center; text-shadow: 0 0 16px rgba(255,209,102,0.6);
+    animation: b3pulse 1.1s ease-in-out infinite;
+  }
+  #scene-typing #b3-hint .ok { font-size: 30px; }
+  #scene-typing #b3-hint .dim { font-size: 26px; }
+  @keyframes b3pulse { 50% { opacity: 0.4; } }
+  #scene-typing #b3-progressWrap {
+    width: 220px; height: 16px; background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,59,78,0.4); border-radius: 8px; overflow: hidden;
+    box-shadow: inset 0 0 8px rgba(0,0,0,0.6);
+  }
+  #scene-typing #b3-progress { height: 100%; width: 0; background: var(--accent); box-shadow: 0 0 14px var(--accent); transition: width 0.2s; }
+  #scene-typing select, #scene-typing button {
+    background: #0c1118; color: var(--fg); border: 1px solid #1d2935;
+    font-family: inherit; font-size: 16px; padding: 8px 12px; border-radius: 6px; cursor: pointer;
+  }
+  #scene-typing #b3-stage {
+    color: #fff; background: var(--accent); font-weight: 800; font-size: 24px; letter-spacing: 2px;
+    min-width: 150px; text-align: center; padding: 8px 14px; border-radius: 6px; box-shadow: 0 0 20px rgba(255,59,78,0.6);
+  }
+  #scene-typing .enter-key {
+    display: inline-block; border: 2px solid var(--warn); border-radius: 6px; padding: 2px 14px;
+    margin: 0 4px; color: #1a1300; background: var(--warn); font-weight: 900; box-shadow: 0 0 16px rgba(255,209,102,0.7);
+  }
+
+  /* =========================================================================
+     BEAT 4+5 -- the reveal scene: WebGL "glass" over the real secure desktop
+     ========================================================================= */
+  #scene-reveal {
+    --bg: #0a0e14; --panel: #121822; --border: #1d2735; --ink: #e6edf3;
+    --dim: #8b98a5; --accent: #ff4d4d; --ok: #57e0a0; --term: #8affc1;
+    background: var(--bg); color: var(--ink);
+    font-family: ui-sans-serif, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  /* WebGL canvas (the glass) sits ON TOP of the DOM desktop */
+  #gl { position: absolute; inset: 0; z-index: 10; display: block; width: 100%; height: 100%; }
+
+  /* the secure desktop (Beat 5), behind the canvas */
+  #b5-desktop {
+    position: absolute; inset: 0; z-index: 1;
+    background: radial-gradient(1200px 800px at 70% 18%, #14202c 0%, #0b1117 60%, #070a0f 100%);
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  #b5-desktop::before {
+    content: ""; position: absolute; inset: 0; opacity: 0.12; pointer-events: none;
+    background-image: linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  #scene-reveal .topbar {
+    position: absolute; top: 0; left: 0; right: 0; height: 36px; z-index: 4;
+    background: rgba(18,24,34,0.92); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px; padding: 0 16px;
+    font-size: 12px; color: var(--dim); letter-spacing: 0.5px;
+  }
+  #scene-reveal .topbar .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  #scene-reveal .topbar .spacer { flex: 1; }
+  #scene-reveal .topbar #b5-clock { color: var(--ink); }
+  #scene-reveal .syspanel {
+    position: absolute; left: 24px; bottom: 24px; z-index: 3; width: 280px;
+    background: rgba(18,24,34,0.7); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; font-size: 11px; color: var(--dim); line-height: 1.7;
+  }
+  #scene-reveal .syspanel .h { color: var(--term); letter-spacing: 1px; margin-bottom: 6px; }
+  #scene-reveal .syspanel .bar { height: 5px; background: #0c141d; border-radius: 3px; overflow: hidden; margin: 3px 0 8px; }
+  #scene-reveal .syspanel .bar > i { display: block; height: 100%; background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  #scene-reveal .syspanel .row { display: flex; justify-content: space-between; }
+  #scene-reveal .syspanel .row b { color: var(--ink); font-weight: normal; }
+  #scene-reveal .icons { position: absolute; top: 64px; left: 40px; z-index: 3; display: flex; flex-direction: column; gap: 26px; }
+  #scene-reveal .icon { width: 104px; text-align: center; cursor: pointer; user-select: none; color: var(--ink); font-size: 12px; }
+  #scene-reveal .icon .glyph {
+    width: 66px; height: 66px; margin: 0 auto 8px; border: 1px solid var(--border); border-radius: 8px;
+    background: linear-gradient(160deg, #18222e, #0f1620); display: flex; align-items: center; justify-content: center;
+    font-size: 30px; box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+  }
+  #scene-reveal .icon.dim { opacity: 0.5; cursor: default; }
+  #scene-reveal .icon .glyph.msg { color: var(--accent); }
+  #scene-reveal .icon .glyph.other { color: var(--dim); }
+  #scene-reveal .icon.hot .glyph { box-shadow: 0 0 0 0 rgba(255,77,77,0.5); animation: b5beacon 2s ease-in-out infinite; }
+  @keyframes b5beacon {
+    0%,100% { box-shadow: 0 0 0 0 rgba(255,77,77,0); }
+    50% { box-shadow: 0 0 22px 3px rgba(255,77,77,0.5); }
+  }
+  #scene-reveal .icon.hot .lbl { color: var(--accent); text-shadow: 0 0 10px rgba(255,77,77,0.5); }
+  #scene-reveal #b5-win {
+    position: absolute; z-index: 6; top: 50%; left: 50%; width: 520px; max-width: 92vw;
+    transform: translate(-50%,-46%) scale(0.96); background: var(--panel);
+    border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 26px 70px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,77,77,0.15);
+    display: none; opacity: 0; font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  #scene-reveal #b5-win.show { display: block; animation: b5winopen 0.28s ease forwards; }
+  @keyframes b5winopen { to { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
+  #scene-reveal #b5-win .title {
+    display: flex; align-items: center; justify-content: space-between; padding: 10px 14px;
+    border-bottom: 1px solid var(--border); font-size: 12px; color: var(--dim);
+  }
+  #scene-reveal #b5-win .title .close { cursor: pointer; padding: 0 6px; }
+  #scene-reveal #b5-win .title .close:hover { color: var(--accent); }
+  #scene-reveal #b5-win .body { padding: 26px 28px 30px; min-height: 200px; }
+  #scene-reveal #b5-decrypt { font-size: 13px; color: var(--term); line-height: 1.9; white-space: pre-wrap; }
+  #scene-reveal #b5-message { display: none; }
+  #scene-reveal #b5-message.show { display: block; animation: b5fadein 0.4s ease; }
+  @keyframes b5fadein { from { opacity: 0; } to { opacity: 1; } }
+  #scene-reveal #b5-message .seal {
+    text-align: center; font-size: 11px; letter-spacing: 3px; color: var(--accent);
+    border: 1px solid var(--accent); border-radius: 999px; padding: 4px 0; width: 220px; margin: 0 auto 20px;
+    box-shadow: 0 0 14px rgba(255,77,77,0.3);
+  }
+  #scene-reveal #b5-message h2 { text-align: center; font-size: 16px; letter-spacing: 2px; margin: 0 0 18px; }
+  #scene-reveal #b5-message p { font-size: 14px; line-height: 1.65; color: var(--ink); margin: 0 0 14px; }
+  #scene-reveal #b5-message .mother {
+    text-align: center; font-size: 26px; letter-spacing: 6px; color: var(--accent);
+    text-shadow: 0 0 16px rgba(255,77,77,0.6); margin: 22px 0;
+  }
+  #scene-reveal #b5-message .fine { text-align: center; font-size: 11px; color: var(--dim); margin-top: 20px; }
+  #scene-reveal #b5-message, #scene-reveal #b5-message * { -webkit-user-select: text; user-select: text; }
+
+  /* shockwave sparks (appended to body, so styled globally but prefixed) */
+  .b5-spark { position: fixed; z-index: 9500; width: 8px; height: 8px; border-radius: 2px;
+    pointer-events: none; will-change: transform, opacity; }
+</style>
+</head>
+<body>
+
+<div id="stage">
+
+  <!-- ===================== BEAT 0: IDLE / STANDBY ===================== -->
+  <section id="scene-idle" class="scene">
+    <div id="b0-sweep"></div>
+    <div class="b0-stage">
+      <div id="b0-plate">
+        <div class="b0-mark">&#128737;</div>
+        <div class="b0-org">CITY SPIES NETWORK</div>
+        <div class="b0-title">SECURE TERMINAL</div>
+        <div class="b0-state"><span class="b0-dot"></span> STANDBY</div>
+        <div id="b0-clock">--:--</div>
+        <div id="b0-date"></div>
+      </div>
+      <button id="b0-wake">TOUCH TO WAKE</button>
+      <div class="b0-hint">authorized personnel only</div>
+    </div>
+  </section>
+
+  <!-- ===================== BEATS 1+2: LOGIN + DOOR ===================== -->
+  <section id="scene-login" class="scene" aria-hidden="true">
+    <div id="b1-wrap">
+      <form id="b1-login" autocomplete="off">
+        <div class="b1-brand">
+          <div class="logo">// CITY SPIES //</div>
+          <div class="name">SECURE PORTAL</div>
+        </div>
+        <div class="b1-field">
+          <label for="b1-user">AGENT ID</label>
+          <input id="b1-user" type="text" placeholder="">
+        </div>
+        <div class="b1-field">
+          <label for="b1-pass">PASSCODE</label>
+          <input id="b1-pass" type="password" placeholder="">
+        </div>
+        <button id="b1-submit" type="submit">LOG IN</button>
+        <div id="b1-denied">&#9940; ACCESS DENIED</div>
+        <div id="b1-tries"></div>
+      </form>
+    </div>
+    <div id="b1-termdoor">
+      <a id="b1-termlink" href="#">&gt;_ terminal</a>
+    </div>
+    <div id="b1-handoff">&gt;_ TERMINAL ACCESS GRANTED</div>
+    <div id="b1-scanlines"></div>
+    <div id="b1-vignette"></div>
+  </section>
+
+  <!-- ===================== BEAT 3: TYPING FRENZY ===================== -->
+  <section id="scene-typing" class="scene" aria-hidden="true">
+    <div id="b3-term"><span id="b3-cursor"></span></div>
+    <div id="b3-scanlines"></div>
+    <div id="b3-vignette"></div>
+    <div id="b3-hud">
+      <span id="b3-stage">STANDBY</span>
+      <span id="b3-hint">[ MASH ANY KEYS ]</span>
+      <div id="b3-progressWrap"><div id="b3-progress"></div></div>
+      <label class="dim" style="font-size:15px;">speed
+        <select id="b3-speed">
+          <option value="slow">slow</option>
+          <option value="normal" selected>normal</option>
+          <option value="fast">fast</option>
+          <option value="ludicrous">ludicrous</option>
+        </select>
+      </label>
+      <button id="b3-replay">replay</button>
+    </div>
+  </section>
+
+  <!-- ===================== BEAT 4+5: REVEAL -> DESKTOP ===================== -->
+  <section id="scene-reveal" class="scene" aria-hidden="true">
+    <!-- the real secure desktop (Beat 5), behind the WebGL glass -->
+    <div id="b5-desktop">
+      <div class="topbar">
+        <span class="dot"></span>
+        <span>SECURE WORKSTATION // node-07 :: ACCESS GRANTED</span>
+        <span class="spacer"></span>
+        <span>uplink: <b style="color:var(--ok)">OPEN</b></span>
+        <span id="b5-clock">--:--:--</span>
+      </div>
+
+      <div class="icons">
+        <div class="icon hot" id="b5-msgIcon">
+          <div class="glyph msg">&#128238;</div>
+          <div class="lbl">message.txt</div>
+        </div>
+        <div class="icon dim">
+          <div class="glyph other">&#128193;</div>
+          <div class="lbl">archives</div>
+        </div>
+        <div class="icon dim">
+          <div class="glyph other">&#128274;</div>
+          <div class="lbl">vault</div>
+        </div>
+      </div>
+
+      <div class="syspanel">
+        <div class="h">// SYSTEM STATUS</div>
+        <div class="row"><span>firewall</span><b style="color:var(--accent)">BREACHED</b></div>
+        <div class="bar"><i style="width:100%"></i></div>
+        <div class="row"><span>uplink integrity</span><b>98%</b></div>
+        <div class="bar"><i style="width:98%"></i></div>
+        <div class="row"><span>trace risk</span><b style="color:var(--ok)">LOW</b></div>
+        <div class="bar"><i style="width:14%; background:#3a6ea5; box-shadow:0 0 8px #3a6ea5"></i></div>
+      </div>
+
+      <div id="b5-win">
+        <div class="title">
+          <span>message.txt &mdash; /home/agent</span>
+          <span class="close" id="b5-winClose">&#10005;</span>
+        </div>
+        <div class="body">
+          <div id="b5-decrypt"></div>
+          <div id="b5-message">
+            <div class="seal">PRIORITY // EYES ONLY</div>
+            <h2>WELL DONE, AGENT.</h2>
+            <p>You broke through the City Spies firewall. The final piece of intel is
+               too sensitive to keep on any machine, so we never stored it here.</p>
+            <p>It is being held in person by your handler.</p>
+            <div class="mother">FIND&nbsp;MOTHER</div>
+            <p>Show MOTHER this screen and ask for your <b>paper fragment</b> from the
+               hacking kiosk. Guard it. You will need it to finish the mission.</p>
+            <div class="fine">// transmission ends &middot; this message will not self-destruct, but you should still hurry</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WebGL canvas: the "glass" that shatters as a tile grid -->
+    <canvas id="gl"></canvas>
+  </section>
+
+</div>
+
+<!-- light->dark power sweep overlay (Beat 0 -> Beat 1) -->
+<div id="powersweep"></div>
+
+<!-- persistent looped soundtrack: started on the Beat 0 wake gesture -->
+<audio id="track" src="Concrete%20Thunder.mp3" loop preload="auto"></audio>
+
+<!-- lightweight synth for the non-melodic reveal sting (no extra mp3) -->
+<script src="https://cdn.jsdelivr.net/npm/tone@15.0.4/build/Tone.js"></script>
+
+<!-- pin Three.js for the grid-collapse beat -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module" src="js/orchestrator.js"></script>
+</body>
+</html>

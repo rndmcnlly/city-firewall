@@ -4,6 +4,41 @@ A multimedia "hack the firewall" activity station for a City Spies themed
 10th birthday party. Kids complete the sequence to retrieve a 4-letter clue
 that feeds into a larger puzzle. Deploys to GitHub Pages.
 
+## The deliverable: `index.html` (synthesized)
+
+The finished experience is a **single page** at the repo root, `index.html`. All
+six beats are stacked as full-screen `.scene` layers; an orchestrator cross-fades
+between them along the handoff event chain. From the kid's perspective it is one
+continuous activity at one URL.
+
+Source layout (no build step, deploys as-is to GitHub Pages):
+
+- `index.html` — the shell: all scene markup + per-beat scoped CSS, the importmap
+  (Three.js), Tone.js, the persistent `<audio>`, and the power-sweep overlay.
+- `js/orchestrator.js` — owns scene switching, the handoff chain, the persistent
+  looped soundtrack (with managed fades), kiosk hardening, and auto-reset.
+- `js/beat0.js` — idle/standby (wake gesture).
+- `js/login.js` — beats 1+2 (login + pulsing terminal door).
+- `js/typing.js` — beat 3 (keystroke-driven hacker transcript).
+- `js/grid-collapse.js` — beat 4 (Three.js shatter; lazy-initialized, with a
+  no-WebGL fallback that reveals the desktop directly). Its canvas repaints the
+  Beat 1 login so the thing that shatters matches the screen the kid started on.
+- `js/beat5.js` — beat 5 (secure desktop, `message.txt`, non-melodic sting).
+
+Behavior notes:
+
+- **Audio** starts on the Beat 0 wake tap, loops throughout, then **fades to
+  zero** as the decrypt finishes so the reveal stinger is the final sound.
+- **Beat 0 -> Beat 1** uses a light-to-dark power sweep (civic blue -> heist red).
+- **Kiosk:** right-click/selection suppressed, best-effort fullscreen on first
+  tap, and after the final FIND MOTHER screen dwells ~2.5 minutes it **hard-
+  reloads** the page (cleanest possible reset: fresh audio, fade state, Tone
+  context, and scenes for the next agent).
+
+The old per-beat prototype folders (`beat0-idle/`, `beats-1-2-login/`,
+`phase3-typing/`, `phase2-reveal/`, `beat5-desktop/`) are kept as provenance /
+reference. They are not part of the deployed experience.
+
 ## Story beats (shared by all concepts)
 
 0. A silent, benign idle/standby screen; one tap to begin (unlocks audio).
@@ -67,5 +102,9 @@ throughout.
 
 ## Viewing
 
-Everything is self-contained static HTML. Just open the file or serve the
-directory. No build step.
+Everything is self-contained static HTML. Serve the directory (the ES modules
+and importmap need `http://`, not `file://`) and open `index.html`. No build step.
+
+```
+python3 -m http.server 8000   # then open http://localhost:8000/
+```

@@ -1,0 +1,9 @@
+# browser automation session state
+.rodney/
+.chrome-profile/
+
+# macOS
+.DS_Store
+
+# editor/scratch
+*.swp
