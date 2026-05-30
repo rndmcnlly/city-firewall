@@ -186,7 +186,13 @@
   loginCanvas.height = TEX_H;
   const lctx = loginCanvas.getContext('2d');
 
-  function drawLogin(withFlash = false) {
+  // Progressive "scorch" cuts carved by the lasers. Each entry is a grid line
+  // that has already been sliced; we redraw them every frame so the cuts
+  // persist on the texture as the lasers assemble the grid one line at a time.
+  //   { axis: 'v'|'h', pos: 0..1 along the cross-axis, t: 0..1 reveal progress }
+  const cuts = [];
+
+  function drawLogin() {
     const ctx = lctx;
     const W = TEX_W, H = TEX_H;
 
@@ -255,22 +261,36 @@
     ctx.restore();
     ctx.textBaseline = 'alphabetic';
 
-    // ---- Optional pre-collapse grid flash: bright red grid lines tracing the
-    //      tile boundaries, so the "fracture lines" appear an instant before
-    //      the tiles actually let go. Pure Tron telegraphing.
-    if (withFlash) {
+    // ---- Progressive laser cuts: glowing scorched grid lines, drawn up to
+    //      each cut's current reveal length so we can watch the beam carve it.
+    //      A cut is a hot red line with a white-hot core and a soft glow.
+    for (const cut of cuts) {
       ctx.save();
-      ctx.strokeStyle = 'rgba(255,77,77,0.85)';
-      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
       ctx.shadowColor = '#ff4d4d';
-      ctx.shadowBlur = 12;
-      for (let c = 1; c < COLS; c++) {
-        const x = (c / COLS) * W;
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
-      }
-      for (let r = 1; r < ROWS; r++) {
-        const y = (r / ROWS) * H;
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+      ctx.shadowBlur = 16;
+      if (cut.axis === 'v') {
+        const x = cut.pos * W;
+        const y1 = 0, y2 = H * cut.t;          // grow downward as it cuts
+        // outer glow
+        ctx.strokeStyle = 'rgba(255,77,77,0.85)';
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(x, y2); ctx.stroke();
+        // white-hot core
+        ctx.shadowBlur = 6;
+        ctx.strokeStyle = 'rgba(255,235,235,0.95)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(x, y2); ctx.stroke();
+      } else {
+        const y = cut.pos * H;
+        const x1 = 0, x2 = W * cut.t;          // grow rightward as it cuts
+        ctx.strokeStyle = 'rgba(255,77,77,0.85)';
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke();
+        ctx.shadowBlur = 6;
+        ctx.strokeStyle = 'rgba(255,235,235,0.95)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke();
       }
       ctx.restore();
     }
@@ -302,7 +322,7 @@
     ctx.fillText(value, x + 14, y + h/2 + 6);
   }
 
-  drawLogin(false);
+  drawLogin();
   const loginTexture = new THREE.CanvasTexture(loginCanvas);
   loginTexture.colorSpace = THREE.SRGBColorSpace;
   loginTexture.minFilter = THREE.LinearFilter;   // no mipmaps: avoid edge bleed
@@ -337,6 +357,35 @@
   const rim = new THREE.DirectionalLight(0xff4d4d, 0.4);
   rim.position.set(-4, -2, 3);
   scene.add(rim);
+
+  // =========================================================================
+  //   LASER BEAM (overlaid in front of the plane). A single bright beam we
+  //   reposition to sweep across the screen and "cut" each grid line. It has
+  //   a glowing line body plus a hot leading-edge dot. Hidden when not slicing.
+  // =========================================================================
+  const laserGroup = new THREE.Group();
+  laserGroup.visible = false;
+  scene.add(laserGroup);
+
+  // Beam body: a thin additive plane we stretch/rotate per cut.
+  const beamMat = new THREE.MeshBasicMaterial({
+    color: 0xff5a5a, transparent: true, opacity: 0.9,
+    blending: THREE.AdditiveBlending, depthTest: false, side: THREE.DoubleSide
+  });
+  const beamMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), beamMat);
+  beamMesh.renderOrder = 5;
+  laserGroup.add(beamMesh);
+
+  // White-hot leading dot: where the laser is actively burning.
+  const sparkMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 1.0,
+    blending: THREE.AdditiveBlending, depthTest: false
+  });
+  const spark = new THREE.Mesh(new THREE.CircleGeometry(0.14, 16), sparkMat);
+  spark.renderOrder = 6;
+  laserGroup.add(spark);
+
+  const BEAM_Z = 0.05;     // just in front of the tile plane (z=0)
 
   // ---- Compute the plane's world dimensions to match the login aspect ratio
   //      and (re)fit the camera on resize. We keep a fixed world height and
@@ -436,15 +485,38 @@
 
   // =========================================================================
   // 4) ANIMATION STATE MACHINE
-  //    phases: 'idle' (login shown) -> 'flash' (grid lines) -> 'collapse'
-  //    -> 'done' (fully revealed). Replay resets all tiles to home.
+  //    phases: 'idle' (login shown) -> 'slicing' (lasers carve the grid line
+  //    by line) -> 'collapse' (tiles peel away) -> 'done' (revealed).
+  //    Replay resets everything.
   // =========================================================================
   let phase = 'idle';
   let phaseStart = 0;           // performance.now() ms at phase entry
-  const AUTO_TRIGGER_MS = 1200; // ~1.2s per spec
-  const FLASH_MS = 260;         // grid-line flash duration
+  const AUTO_TRIGGER_MS = 1200; // ~1.2s before the lasers start
+  const SLICE_MS = 230;         // time for the laser to traverse one line
+  const SLICE_GAP_MS = 70;      // brief pause between cuts
   const GRAVITY = 9.5;          // world units / s^2
   const FALL_DURATION = 1.6;    // seconds per tile from break to faded out
+
+  // ---- Build the ordered list of cuts the lasers will perform. We alternate
+  //      vertical and horizontal so the beam visibly jumps orientation, and
+  //      sweep verticals left->right then horizontals top->bottom, interleaved
+  //      for a lively "assembling the grid" rhythm.
+  function buildCutSchedule() {
+    const verticals = [];
+    for (let c = 1; c < COLS; c++) verticals.push({ axis: 'v', pos: c / COLS });
+    const horizontals = [];
+    for (let r = 1; r < ROWS; r++) horizontals.push({ axis: 'h', pos: r / ROWS });
+    // Interleave: V, H, V, H ... until both run out.
+    const schedule = [];
+    let i = 0, j = 0;
+    while (i < verticals.length || j < horizontals.length) {
+      if (i < verticals.length) schedule.push(verticals[i++]);
+      if (j < horizontals.length) schedule.push(horizontals[j++]);
+    }
+    return schedule;
+  }
+  let cutSchedule = [];
+  let cutIndex = 0;             // which cut the laser is currently burning
 
   function resetTiles() {
     for (const t of tiles) {
@@ -458,10 +530,14 @@
   }
 
   function startSequence() {
-    drawLogin(false);
+    cuts.length = 0;                 // clear any scorched lines
+    cutSchedule = buildCutSchedule();
+    cutIndex = 0;
+    drawLogin();
     loginTexture.needsUpdate = true;
     resetTiles();
     gridGroup.visible = true;
+    laserGroup.visible = false;
     canvas.style.pointerEvents = 'auto';   // canvas catches clicks again
     phase = 'idle';
     phaseStart = performance.now();
@@ -470,18 +546,43 @@
 
   // Allow clicking the glass to trigger early (per spec: "or on a click").
   canvas.addEventListener('pointerdown', () => {
-    if (phase === 'idle') enterFlash();
+    if (phase === 'idle') enterSlicing();
   });
 
-  function enterFlash() {
-    drawLogin(true);                  // redraw WITH the red grid-line flash
-    loginTexture.needsUpdate = true;
-    phase = 'flash';
+  // ---- Position the laser beam to lie along the cut currently being burned,
+  //      with its leading spark at fraction `t` along the line. Coordinates
+  //      map texture-space (0..1) into the plane's world rectangle.
+  function placeBeam(cut, t) {
+    const halfW = PLANE_W / 2, halfH = PLANE_H / 2;
+    if (cut.axis === 'v') {
+      const x = -halfW + cut.pos * PLANE_W;
+      const burnedLen = t * PLANE_H;             // burns from top downward
+      beamMesh.position.set(x, halfH - burnedLen / 2, BEAM_Z);
+      beamMesh.scale.set(0.05, burnedLen, 1);    // thin & tall
+      beamMesh.rotation.z = 0;
+      spark.position.set(x, halfH - burnedLen, BEAM_Z);
+    } else {
+      const y = halfH - cut.pos * PLANE_H;
+      const burnedLen = t * PLANE_W;             // burns from left rightward
+      beamMesh.position.set(-halfW + burnedLen / 2, y, BEAM_Z);
+      beamMesh.scale.set(burnedLen, 0.05, 1);    // thin & wide
+      beamMesh.rotation.z = 0;
+      spark.position.set(-halfW + burnedLen, y, BEAM_Z);
+    }
+  }
+
+  function enterSlicing() {
+    phase = 'slicing';
+    cutIndex = 0;
+    laserGroup.visible = true;
+    // begin the first cut
+    cuts.push({ axis: cutSchedule[0].axis, pos: cutSchedule[0].pos, t: 0 });
     phaseStart = performance.now();
   }
 
   function enterCollapse() {
-    drawLogin(false);                 // drop the flash overlay
+    laserGroup.visible = false;
+    drawLogin();                      // keep the fully-carved grid on the texture
     loginTexture.needsUpdate = true;
     phase = 'collapse';
     phaseStart = performance.now();
@@ -520,9 +621,47 @@
     lastT = now;
 
     if (phase === 'idle') {
-      if (now - phaseStart >= AUTO_TRIGGER_MS) enterFlash();
-    } else if (phase === 'flash') {
-      if (now - phaseStart >= FLASH_MS) enterCollapse();
+      if (now - phaseStart >= AUTO_TRIGGER_MS) enterSlicing();
+    } else if (phase === 'slicing') {
+      // Each cut takes SLICE_MS to traverse, then a short SLICE_GAP_MS before
+      // the next. Total time per cut slot = SLICE_MS + SLICE_GAP_MS.
+      const SLOT = SLICE_MS + SLICE_GAP_MS;
+      const sliceElapsed = now - phaseStart;
+      const slot = Math.floor(sliceElapsed / SLOT);
+      const within = sliceElapsed - slot * SLOT;
+
+      // Advance the active cut index, spawning new scorch lines as we go.
+      // Loop (not a single assignment) so a skipped/slow frame that jumps the
+      // slot by 2+ still finalizes and spawns every intermediate cut, leaving
+      // no grid line un-carved.
+      while (slot > cutIndex && cutIndex < cutSchedule.length - 1) {
+        if (cuts[cutIndex]) cuts[cutIndex].t = 1;   // finalize finished cut
+        cutIndex++;
+        cuts.push({ axis: cutSchedule[cutIndex].axis, pos: cutSchedule[cutIndex].pos, t: 0 });
+      }
+
+      // Animate the current cut's reveal fraction (ease-out for a snappy zip).
+      const active = cuts[Math.min(cutIndex, cuts.length - 1)];
+      if (active) {
+        const raw = Math.min(within / SLICE_MS, 1);
+        active.t = 1 - Math.pow(1 - raw, 2);        // ease-out
+        placeBeam(cutSchedule[cutIndex], active.t);
+        // spark + beam flicker for an energetic burn
+        const flick = 0.75 + 0.25 * Math.sin(now * 0.05);
+        beamMat.opacity = (raw < 1 ? 0.9 : 0.0) * flick;  // beam off between cuts
+        sparkMat.opacity = raw < 1 ? flick : 0.0;
+      }
+
+      drawLogin();
+      loginTexture.needsUpdate = true;
+
+      // Done slicing once the last cut has fully traversed.
+      if (cutIndex >= cutSchedule.length - 1 && within >= SLICE_MS) {
+        if (cuts[cutIndex]) cuts[cutIndex].t = 1;
+        drawLogin();
+        loginTexture.needsUpdate = true;
+        enterCollapse();
+      }
     } else if (phase === 'collapse') {
       const tSeq = (now - phaseStart) / 1000;   // seconds since collapse began
       let anyAlive = false;
