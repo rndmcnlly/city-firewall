@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beats 1 &amp; 2: Boring Login + Secret Button</title>
+<style>
+  :root {
+    --bg: #0a0e14;
+    --panel: #121822;
+    --ink: #e6edf3;
+    --dim: #8b98a5;
+    --a: #ff4d4d;
+    --b: #ffd23f;
+    --c: #3fa9ff;
+    --d: #59e08a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: radial-gradient(circle at 50% -10%, #1a2433, var(--bg) 60%);
+    color: var(--ink);
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.4;
+    padding: 0 0 4rem;
+  }
+  header { text-align: center; padding: 2.5rem 1rem 1rem; }
+  header h1 {
+    font-size: clamp(1.6rem, 5.5vw, 2.7rem);
+    margin: 0; letter-spacing: 0.05em;
+    text-shadow: 0 0 18px rgba(63,169,255,0.4);
+  }
+  header p { color: var(--dim); max-width: 44rem; margin: 0.6rem auto 0; font-size: 1.05rem; }
+  .beats { text-align: center; color: var(--dim); font-size: 0.95rem; margin: 0.8rem auto 0; }
+  .beats b { color: var(--ink); }
+  .beats .now { color: var(--b); }
+
+  .section-title {
+    max-width: 1100px; margin: 3rem auto 0; padding: 0 1rem;
+    display: flex; align-items: baseline; gap: 0.8rem; flex-wrap: wrap;
+  }
+  .section-title .step {
+    font-size: 1rem; font-weight: bold; color: #0a0e14;
+    background: var(--ink); border-radius: 999px; padding: 0.15rem 0.9rem;
+  }
+  .section-title h2 { font-size: 1.5rem; margin: 0; }
+  .section-title .sub { color: var(--dim); width: 100%; font-size: 1rem; }
+
+  .options { display: flex; flex-direction: column; gap: 1.6rem; max-width: 1100px; margin: 1.2rem auto 0; padding: 0 1rem; }
+  .option { background: var(--panel); border-radius: 18px; padding: 1.3rem 1.4rem 1.6rem; border: 2px solid transparent; box-shadow: 0 10px 40px rgba(0,0,0,0.4); }
+  .option.a { border-color: var(--a); }
+  .option.b { border-color: var(--b); }
+  .option.c { border-color: var(--c); }
+  .option.d { border-color: var(--d); }
+
+  .opt-head { display: flex; align-items: baseline; gap: 0.7rem; flex-wrap: wrap; margin-bottom: 0.3rem; }
+  .opt-tag { font-weight: bold; font-size: 1.3rem; padding: 0.1rem 0.7rem; border-radius: 10px; color: #0a0e14; }
+  .a .opt-tag { background: var(--a); }
+  .b .opt-tag { background: var(--b); }
+  .c .opt-tag { background: var(--c); }
+  .d .opt-tag { background: var(--d); }
+  .opt-name { font-size: 1.35rem; font-weight: bold; }
+  .opt-vibe { color: var(--dim); width: 100%; font-size: 0.98rem; margin-top: 0.2rem; }
+
+  .demo {
+    display: grid; grid-template-columns: 1.1fr 1fr; gap: 1.1rem; margin-top: 1rem; align-items: stretch;
+  }
+  @media (max-width: 720px) { .demo { grid-template-columns: 1fr; } }
+
+  /* the little fake-screen mockup */
+  .screen {
+    background: #05070a; border: 1px solid #1d2735; border-radius: 12px;
+    min-height: 190px; padding: 1rem; position: relative; overflow: hidden;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-family: "DejaVu Sans Mono", ui-monospace, monospace;
+  }
+  .what { font-size: 0.92rem; color: var(--ink); align-self: stretch; }
+  .what b { display: block; color: var(--dim); font-size: 0.78rem; letter-spacing: 0.1em; margin-bottom: 0.3rem; text-transform: uppercase; }
+  .what ul { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+  .what li { margin: 0.2rem 0; }
+
+  /* mockup bits */
+  .box { background: #0c1119; border: 1px solid #243043; border-radius: 8px; padding: 0.9rem; width: 86%; }
+  .lbl { font-size: 0.7rem; color: var(--dim); }
+  .inp { background: #060a0f; border: 1px solid #2a3a4d; border-radius: 5px; height: 1.5rem; margin-top: 0.25rem; }
+  .btn { margin-top: 0.7rem; background: #233246; color: #cdd9e5; border-radius: 5px; text-align: center; padding: 0.35rem; font-size: 0.8rem; }
+  .denied { color: var(--a); font-weight: bold; margin-top: 0.7rem; font-size: 0.85rem; }
+  .sass { color: var(--b); margin-top: 0.7rem; font-size: 0.85rem; font-style: italic; }
+  .corner-link { position: absolute; bottom: 0.5rem; right: 0.6rem; color: var(--a); font-size: 0.7rem; opacity: 0.6; }
+  .glitchbtn { margin-top: 0.8rem; background: #2a210a; color: var(--b); border: 1px dashed var(--b); border-radius: 6px; padding: 0.4rem 0.7rem; font-size: 0.8rem; }
+  .pic { font-size: 2.2rem; }
+
+  .vote { text-align: center; margin-top: 3.5rem; color: var(--dim); }
+  .vote .big { color: var(--ink); font-size: 1.2rem; }
+  .pick { font-size: 0.95rem; margin-top: 0.3rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔑 PICK THE START: Boring Login + Secret Button 🔑</h1>
+  <p>Beats 3 (crazy typing) and 4 (screen shatters) are already built. Now we choose how the hack <i>begins</i>. This is the calm-before-the-storm part: a normal-looking login that won't let you in, and the hidden way to sneak past it.</p>
+  <div class="beats">
+    <b>1.</b> <span class="now">Boring login</span> &rarr; <b>2.</b> <span class="now">Secret terminal button</span> &rarr;
+    <b>3.</b> Crazy typing &rarr; <b>4.</b> Screen breaks &rarr; <b>5.</b> Open clue.txt
+  </div>
+</header>
+
+<!-- ============================ BEAT 1 ============================ -->
+<div class="section-title">
+  <span class="step">BEAT 1</span>
+  <h2>The Boring Login</h2>
+  <span class="sub">It looks like a normal, dull login screen. The whole joke is that it will <i>never</i> let you in the front door. No matter what you type, you get bounced.</span>
+</div>
+
+<div class="options">
+
+  <section class="option a">
+    <div class="opt-head"><span class="opt-tag">A</span><span class="opt-name">Dead Serious Denial</span>
+      <span class="opt-vibe">A plain corporate login. Type anything, get a big red ACCESS DENIED stamp. Cold and official, like a real bank or spy agency.</span></div>
+    <div class="demo">
+      <div class="screen">
+        <div class="box">
+          <div class="lbl">USERNAME</div><div class="inp"></div>
+          <div class="lbl" style="margin-top:.5rem">PASSWORD</div><div class="inp"></div>
+          <div class="btn">LOG IN</div>
+          <div class="denied">⛔ ACCESS DENIED</div>
+        </div>
+      </div>
+      <div class="what"><b>What happens</b>
+        <ul>
+          <li>Type a guess, hit Log In.</li>
+          <li>Screen shakes, red "ACCESS DENIED" stamps down.</li>
+          <li>Tries left: 3... 2... 1... it just keeps failing.</li>
+          <li>Feels like a real locked door. Makes the secret way in feel earned.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="option b">
+    <div class="opt-head"><span class="opt-tag">B</span><span class="opt-name">Sassy Computer</span>
+      <span class="opt-vibe">The login box talks back and teases you. Every wrong guess gets a funnier insult. Silly and giggly.</span></div>
+    <div class="demo">
+      <div class="screen">
+        <div class="box">
+          <div class="lbl">PASSWORD, GENIUS</div><div class="inp"></div>
+          <div class="btn">try it</div>
+          <div class="sass">"Nope." &nbsp; "Was that your cat's name?" &nbsp; "LOL not even close."</div>
+        </div>
+      </div>
+      <div class="what"><b>What happens</b>
+        <ul>
+          <li>Each wrong password gets a new sassy line.</li>
+          <li>The messages get funnier the more you try.</li>
+          <li>Maybe it starts a fake "hint" that's totally useless.</li>
+          <li>Lighthearted, sets a goofy tone for the whole hack.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="option c">
+    <div class="opt-head"><span class="opt-tag">C</span><span class="opt-name">Loading Forever</span>
+      <span class="opt-vibe">It pretends to work, then betrays you. A spinner says "Checking..." then "Verifying..." then crashes to an error. The classic annoying website.</span></div>
+    <div class="demo">
+      <div class="screen">
+        <div class="box">
+          <div class="lbl">SIGN IN</div><div class="inp"></div>
+          <div class="btn">Continue</div>
+          <div class="sass" style="color:var(--c)">⏳ Checking... Verifying... Almost there...</div>
+          <div class="denied">✖ Error 403: Try again later.</div>
+        </div>
+      </div>
+      <div class="what"><b>What happens</b>
+        <ul>
+          <li>Click Continue, watch a hopeful loading bar.</li>
+          <li>It gets to 99%... then fails with a fake error.</li>
+          <li>So relatable it's funny (every kid knows this pain).</li>
+          <li>The "this thing is broken" feeling makes hacking it satisfying.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ============================ BEAT 2 ============================ -->
+<div class="section-title">
+  <span class="step">BEAT 2</span>
+  <h2>The Secret Terminal Button</h2>
+  <span class="sub">There's a hidden way in that the boring login doesn't want you to find. Once you spot it and click, you drop into the hacker terminal and Beat 3 begins.</span>
+</div>
+
+<div class="options">
+
+  <section class="option a">
+    <div class="opt-head"><span class="opt-tag">A</span><span class="opt-name">Tiny Corner Link</span>
+      <span class="opt-vibe">A small, faint "&gt;_ terminal" blinking quietly in a corner. You have to actually look for it. Rewards the sharp-eyed.</span></div>
+    <div class="demo">
+      <div class="screen">
+        <div class="box" style="opacity:.5">
+          <div class="lbl">USERNAME</div><div class="inp"></div>
+          <div class="lbl" style="margin-top:.5rem">PASSWORD</div><div class="inp"></div>
+          <div class="btn">LOG IN</div>
+        </div>
+        <div class="corner-link">&gt;_ terminal</div>
+      </div>
+      <div class="what"><b>What happens</b>
+        <ul>
+          <li>A faint blinking link hides in the bottom corner.</li>
+          <li>Hovering makes it glow a little brighter.</li>
+          <li>Click it and the screen flips to the hacker terminal.</li>
+          <li>Feels like finding a secret door. Very "I'm a real hacker."</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="option b">
+    <div class="opt-head"><span class="opt-tag">B</span><span class="opt-name">DO NOT PRESS</span>
+      <span class="opt-vibe">A glitchy, wobbling button appears that literally says "DO NOT PRESS." Of course you press it. Maximum mischief.</span></div>
+    <div class="demo">
+      <div class="screen">
+        <div class="box" style="opacity:.45">
+          <div class="lbl">PASSWORD</div><div class="inp"></div><div class="btn">LOG IN</div>
+        </div>
+        <div class="glitchbtn">⚠ DO NOT PRESS ⚠</div>
+      </div>
+      <div class="what"><b>What happens</b>
+        <ul>
+          <li>After a few failed logins, a forbidden button glitches in.</li>
+          <li>It jiggles and dares you not to press it.</li>
+          <li>Press it &rarr; "WELL YOU PRESSED IT" &rarr; into the terminal.</li>
+          <li>Irresistible to a kid. Pure comedy.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="option c">
+    <div class="opt-head"><span class="opt-tag">C</span><span class="opt-name">Secret Knock</span>
+      <span class="opt-vibe">No visible button at all. You unlock the terminal with a secret move: click the logo 5 times, or type a magic word. A true hidden cheat code.</span></div>
+    <div class="demo">
+      <div class="screen">
+        <div class="pic">🔒</div>
+        <div class="what" style="text-align:center;margin-top:.6rem">
+          <span style="color:var(--c)">click the lock 5 times...</span><br>
+          <span style="color:var(--dim);font-size:.8rem">tap tap tap tap <b style="color:var(--d)">tap!</b></span>
+        </div>
+      </div>
+      <div class="what"><b>What happens</b>
+        <ul>
+          <li>Nothing looks clickable: you have to <i>know</i> the trick.</li>
+          <li>Click the logo 5x (or type a magic word) to unlock.</li>
+          <li>A hidden panel slides open: "&gt;_ TERMINAL ACCESS GRANTED."</li>
+          <li>Great if you want to <i>teach</i> the kid the secret as part of the game.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="option d">
+    <div class="opt-head"><span class="opt-tag">D</span><span class="opt-name">Glitch Crack-Open</span>
+      <span class="opt-vibe">The boring login itself starts glitching out, and a crack splits across it revealing the terminal underneath. The login "breaks" to let you in.</span></div>
+    <div class="demo">
+      <div class="screen">
+        <div class="box" style="opacity:.5;transform:skewX(-3deg)">
+          <div class="lbl">SYSTEM ERR0R_</div><div class="inp"></div><div class="btn">L0G▒N</div>
+        </div>
+        <div class="corner-link" style="left:.6rem;right:auto;color:var(--d);opacity:.9">&gt;_ enter terminal</div>
+      </div>
+      <div class="what"><b>What happens</b>
+        <ul>
+          <li>After failed logins the screen flickers and tears.</li>
+          <li>Through the crack you glimpse green terminal text.</li>
+          <li>A "&gt;_ enter terminal" prompt invites you through the gap.</li>
+          <li>Smoothly previews the Beat 4 "screen breaks" vibe early.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div class="vote">
+  <div class="big">Pick one for each beat!</div>
+  <div class="pick">Beat 1 (login): <b>A</b>, <b>B</b>, or <b>C</b>? &nbsp;&bull;&nbsp; Beat 2 (secret button): <b>A</b>, <b>B</b>, <b>C</b>, or <b>D</b>?</div>
+  <div class="pick" style="margin-top:.4rem;color:var(--dim)">You can mix them, like "1B + 2B" for full goofball, or "1A + 2A" for serious spy.</div>
+</div>
+
+</body>
+</html>

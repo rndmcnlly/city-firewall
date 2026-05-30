@@ -30,6 +30,20 @@ options for the kid to react to, then we synthesize.
       lasers slice across one line at a time to *assemble* the grid before the
       tiles peel away.
     - **flavor3-voronoi** — organic Voronoi chunks blasting outward.
+- **Phase 3 (done): Typing frenzy (beat 3).** Keystroke-driven hacker transcript
+  in `phase3-typing/`. Built around a real Starlette Host-header bypass
+  (CVE-2026-48710), with woven-in missteps and an accelerating, high-visibility
+  HUD. Fires `typing-frenzy-complete` to hand off to beat 4.
+- **Phase 4 (done): Opening beats 1+2.** Options storyboard in
+  `beats-1-2-options.html`; chosen build in `beats-1-2-login/`.
+  **Chosen: 1A + 2A.**
+    - **Beat 1A: Dead Serious Denial** — cold secure portal that always stamps
+      ACCESS DENIED and shakes. Never lets you in the front door.
+    - **Beat 2A: Tiny corner `>_ terminal` link** — the real way through.
+      Emits radial pulses to draw the eye: occasional ambient rings, plus
+      escalating bursts on each failed login (more/faster/brighter/farther,
+      red -> green), going permanently "hot" after 3 fails. Fires
+      `login-bypassed` to hand off to beat 3.
 
 ## Viewing
 

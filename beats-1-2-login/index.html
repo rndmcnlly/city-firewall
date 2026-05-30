@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>City Spies // Secure Login (Beats 1+2)</title>
+<style>
+  :root {
+    --bg: #05070a;
+    --panel: #0c1119;
+    --fg: #d7e6df;
+    --dim: #5f7d72;
+    --line: #1d2735;
+    --accent: #ff3b4e;   /* heist red */
+    --term: #8affc1;     /* terminal green */
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    background: radial-gradient(circle at 50% 38%, #0e1622, var(--bg) 70%);
+    color: var(--fg);
+    font-family: "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
+    overflow: hidden;
+  }
+
+  /* ---- shared CRT atmosphere (matches Beat 3) ---- */
+  #scanlines {
+    position: fixed; inset: 0; pointer-events: none; z-index: 50;
+    background: repeating-linear-gradient(
+      to bottom, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px,
+      rgba(0,0,0,0.18) 3px, rgba(0,0,0,0) 4px);
+    mix-blend-mode: multiply;
+  }
+  #vignette {
+    position: fixed; inset: 0; pointer-events: none; z-index: 40;
+    box-shadow: inset 0 0 220px 40px rgba(0,0,0,0.85);
+  }
+
+  /* ---- the login panel (Beat 1A: dead serious denial) ---- */
+  #wrap {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #login {
+    width: 340px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 10px;
+    padding: 28px 26px 24px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+  #login.shake { animation: shake 0.4s; }
+  @keyframes shake {
+    10%,90% { transform: translateX(-2px); }
+    20%,80% { transform: translateX(4px); }
+    30%,50%,70% { transform: translateX(-8px); }
+    40%,60% { transform: translateX(8px); }
+  }
+  .brand { text-align: center; margin-bottom: 22px; }
+  .brand .logo { font-size: 13px; letter-spacing: 3px; color: var(--dim); }
+  .brand .name { font-size: 18px; letter-spacing: 1px; margin-top: 4px; color: var(--fg); }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 10px; letter-spacing: 2px; color: var(--dim); margin-bottom: 5px; }
+  .field input {
+    width: 100%; background: #060a0f; color: var(--fg);
+    border: 1px solid #2a3a4d; border-radius: 5px;
+    font-family: inherit; font-size: 14px; padding: 9px 10px;
+  }
+  .field input:focus { outline: none; border-color: #3a5167; }
+  #submit {
+    width: 100%; margin-top: 6px;
+    background: #1a2632; color: #cdd9e5;
+    border: 1px solid #2a3a4d; border-radius: 5px;
+    font-family: inherit; font-size: 13px; letter-spacing: 2px;
+    padding: 11px; cursor: pointer; transition: background 0.15s;
+  }
+  #submit:hover { background: #233246; }
+  #denied {
+    margin-top: 16px; min-height: 18px; text-align: center;
+    color: var(--accent); font-size: 13px; font-weight: bold; letter-spacing: 1px;
+    opacity: 0; transition: opacity 0.1s;
+  }
+  #denied.show { opacity: 1; }
+  #tries { margin-top: 8px; text-align: center; font-size: 10px; color: var(--dim); letter-spacing: 1px; }
+
+  /* ---- Beat 2A: the tiny corner terminal link + radial pulses ---- */
+  #termdoor {
+    position: fixed; bottom: 14px; right: 16px; z-index: 30;
+    /* anchor for the pulse rings */
+  }
+  #termlink {
+    position: relative; z-index: 2;
+    display: inline-block;
+    font-size: 12px; letter-spacing: 1px;
+    color: var(--term); opacity: 0.45;
+    text-decoration: none; cursor: pointer;
+    padding: 4px 6px; border-radius: 4px;
+    transition: opacity 0.2s, text-shadow 0.2s, transform 0.1s;
+    animation: linkblink 1.3s steps(1) infinite;
+  }
+  #termlink:hover {
+    opacity: 1; text-shadow: 0 0 12px var(--term);
+    transform: scale(1.08);
+  }
+  @keyframes linkblink { 50% { opacity: 0.18; } }
+  /* once the kid has failed enough, the link gets permanently louder */
+  #termdoor.hot #termlink { opacity: 0.9; text-shadow: 0 0 10px var(--term); animation-duration: 0.7s; }
+
+  /* a pulse ring: a circle that expands outward from the link and fades */
+  .pulse {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 12px; height: 12px;
+    margin: -6px 0 0 -6px;
+    border-radius: 50%;
+    border: 2px solid var(--term);
+    pointer-events: none;
+    z-index: 1;
+    animation: ring var(--dur, 1.6s) ease-out forwards;
+    opacity: 0;
+  }
+  @keyframes ring {
+    0%   { transform: scale(1);  opacity: var(--peak, 0.55); }
+    100% { transform: scale(var(--max, 14)); opacity: 0; }
+  }
+
+  /* the "access granted" handoff splash */
+  #handoff {
+    position: fixed; inset: 0; z-index: 60;
+    display: none; align-items: center; justify-content: center;
+    background: var(--bg);
+    color: var(--term); font-size: 18px; letter-spacing: 3px;
+    text-shadow: 0 0 16px var(--term);
+  }
+  #handoff.show { display: flex; animation: hojoin 0.3s; }
+  @keyframes hojoin { from { opacity: 0; } to { opacity: 1; } }
+</style>
+</head>
+<body>
+
+<div id="wrap">
+  <form id="login" autocomplete="off">
+    <div class="brand">
+      <div class="logo">// CITY SPIES //</div>
+      <div class="name">SECURE PORTAL</div>
+    </div>
+    <div class="field">
+      <label for="user">AGENT ID</label>
+      <input id="user" type="text" placeholder="">
+    </div>
+    <div class="field">
+      <label for="pass">PASSCODE</label>
+      <input id="pass" type="password" placeholder="">
+    </div>
+    <button id="submit" type="submit">LOG IN</button>
+    <div id="denied">&#9940; ACCESS DENIED</div>
+    <div id="tries"></div>
+  </form>
+</div>
+
+<div id="termdoor">
+  <a id="termlink" href="#">&gt;_ terminal</a>
+</div>
+
+<div id="handoff">&gt;_ TERMINAL ACCESS GRANTED</div>
+
+<div id="scanlines"></div>
+<div id="vignette"></div>
+
+<script>
+/* ============================================================================
+   BEATS 1 + 2  --  the calm before the storm
+     Beat 1A: a dead-serious login that NEVER lets you in the front door.
+     Beat 2A: a tiny corner ">_ terminal" link that is the real way through.
+   The link emits radial pulses to draw the eye:
+     - AMBIENT: an occasional lone ring, just often enough to be noticed.
+     - ON FAILURE: a burst of rings whenever a login attempt fails, growing
+       in intensity (count, brightness, speed, reach) with each failure, so a
+       frustrated kid is pulled toward the secret door.
+   ========================================================================== */
+
+const loginEl  = document.getElementById('login');
+const deniedEl = document.getElementById('denied');
+const triesEl  = document.getElementById('tries');
+const doorEl   = document.getElementById('termdoor');
+const linkEl   = document.getElementById('termlink');
+const handoff  = document.getElementById('handoff');
+
+let fails = 0;
+
+/* ---- pulse engine ---------------------------------------------------------
+   spawnRing() creates one expanding ring. Tunable per-ring via CSS vars so the
+   same primitive serves both gentle ambient pulses and loud failure bursts. */
+function spawnRing({ dur = 1.6, max = 14, peak = 0.5, color = null, thick = 2 } = {}) {
+  const ring = document.createElement('span');
+  ring.className = 'pulse';
+  ring.style.setProperty('--dur', dur + 's');
+  ring.style.setProperty('--max', max);
+  ring.style.setProperty('--peak', peak);
+  ring.style.borderWidth = thick + 'px';
+  if (color) ring.style.borderColor = color;
+  doorEl.appendChild(ring);
+  ring.addEventListener('animationend', () => ring.remove());
+}
+
+/* a burst = several rings staggered slightly so they ripple outward */
+function burst(rings, opts, gap = 120) {
+  for (let i = 0; i < rings; i++) {
+    setTimeout(() => spawnRing(opts), i * gap);
+  }
+}
+
+/* ---- ambient pulses: occasional, escalating slowly as fails accrue -------- */
+function scheduleAmbient() {
+  // base interval shrinks as the kid fails more, so the door "calls" louder
+  const base = Math.max(2200, 9000 - fails * 1100);
+  const jitter = Math.random() * 3000;
+  setTimeout(() => {
+    // a lone, soft ring
+    spawnRing({
+      dur: 2.0,
+      max: 10 + fails * 1.5,
+      peak: 0.25 + Math.min(fails, 5) * 0.05,
+      thick: 2
+    });
+    scheduleAmbient();
+  }, base + jitter);
+}
+
+/* ---- failure bursts: the main attention grab, scales hard with fails ------ */
+function failureBurst() {
+  fails++;
+
+  // intensity curve
+  const rings = Math.min(2 + fails, 8);          // more rings each time
+  const dur   = Math.max(0.7, 1.6 - fails * 0.1); // faster (snappier) each time
+  const max   = 12 + fails * 3;                    // reaches farther across screen
+  const peak  = Math.min(0.85, 0.45 + fails * 0.08); // brighter
+  const thick = Math.min(5, 2 + Math.floor(fails / 2));
+
+  // red-tinged early, shifting to pure terminal-green to say "go HERE"
+  const color = fails >= 3 ? null /* css green */ : '#ff7b88';
+
+  burst(rings, { dur, max, peak, color, thick }, 90);
+
+  // after a few fails, the link itself goes permanently "hot"
+  if (fails >= 3) doorEl.classList.add('hot');
+
+  // nudge: after several fails, whisper a hint under the tries counter
+  if (fails === 4) {
+    triesEl.innerHTML = 'LOCKOUT IMMINENT &middot; <span style="color:#8affc1">is there another way in?</span>';
+  }
+}
+
+/* ---- Beat 1A: the login that always denies ------------------------------- */
+loginEl.addEventListener('submit', (e) => {
+  e.preventDefault();
+  loginEl.classList.remove('shake');
+  void loginEl.offsetWidth;        // reflow so the shake re-triggers
+  loginEl.classList.add('shake');
+
+  deniedEl.classList.add('show');
+  if (fails < 3) triesEl.textContent = 'ATTEMPTS LOGGED: ' + (fails + 1);
+
+  failureBurst();
+});
+
+/* ---- Beat 2A -> Beat 3 handoff ------------------------------------------- */
+linkEl.addEventListener('click', (e) => {
+  e.preventDefault();
+  handoff.classList.add('show');
+  // In the full sequence this is where Beat 3 (the typing frenzy) takes over.
+  setTimeout(() => {
+    document.dispatchEvent(new CustomEvent('login-bypassed'));
+    // standalone preview: show where we'd jump to the terminal
+    handoff.innerHTML = '&gt;_ TERMINAL ACCESS GRANTED<br><span style="font-size:12px;opacity:.6">(Beat 3: typing frenzy starts here)</span>';
+  }, 900);
+});
+
+/* start the ambient heartbeat */
+scheduleAmbient();
+</script>
+</body>
+</html>
